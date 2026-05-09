@@ -1,0 +1,414 @@
+# Fase2-Orchestrator - Orquestração Kubernetes
+
+Este repositório contém o **Gateway (YARP)**, manifestos Kubernetes locais (`k8s/`) e a **plataforma AWS Fase 4**: Terraform, Helm (`fcg-platform`), GitOps (Argo CD) e scripts de validação.
+
+Para deploy na AWS:
+- 📘 [docs/DEPLOY-AUTOMATIC.md](docs/DEPLOY-AUTOMATIC.md) — fluxo automático ponta-a-ponta
+- 📋 [docs/MANUAL-STEPS.md](docs/MANUAL-STEPS.md) — checklist do que precisa ser feito à mão (uma única vez)
+- 🎯 [docs/FASE4-COMPLIANCE.md](docs/FASE4-COMPLIANCE.md) — mapa de cumprimento dos requisitos do Tech Challenge
+- 📐 [docs/AWS-PLATFORM.md](docs/AWS-PLATFORM.md) — visão geral da arquitetura
+
+## Estrutura
+
+```
+Fase2-Orchestrator/
+├── infra/terraform/aws/     # Fase 4 AWS (EKS, ECR, dados gerenciados)
+├── deploy/helm/fcg-platform/ # Chart Helm de produção (Argo CD)
+├── gitops/argocd/           # Projeto e Application Argo CD
+├── scripts/                 # smoke-test.ps1 (ALB)
+├── src/                     # Gateway.Api (.NET)
+├── k8s/
+│   ├── namespace.yaml                    # Namespace único para todos os serviços
+│   ├── configmap.yaml                    # Configurações compartilhadas (RabbitMQ, etc)
+│   ├── secrets.yaml                      # Secrets compartilhados (templates)
+│   ├── rabbitmq/                         # RabbitMQ compartilhado
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   └── pvc.yaml
+│   ├── users-api/                        # UsersAPI
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── configmap.yaml
+│   │   └── secret.yaml
+│   ├── catalog-api/                      # CatalogAPI
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── configmap.yaml
+│   │   └── secret.yaml
+│   ├── payments-api/                     # PaymentsAPI
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── configmap.yaml
+│   │   └── secret.yaml
+│   ├── notifications-api/                # NotificationsAPI
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── configmap.yaml
+│   │   └── secret.yaml
+│   ├── postgres-users/                   # PostgreSQL INDIVIDUAL para UsersAPI
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── pvc.yaml
+│   │   ├── configmap.yaml
+│   │   └── secret.yaml
+│   ├── postgres-catalog/                 # PostgreSQL INDIVIDUAL para CatalogAPI
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── pvc.yaml
+│   │   ├── configmap.yaml
+│   │   └── secret.yaml
+│   ├── ingress.yaml                      # Ingress
+│   ├── kustomization.yaml                # Kustomize para deploy simplificado
+│   └── README.md                         # Documentação completa
+└── README.md                             # Este arquivo
+```
+
+## Pré-requisitos
+
+1. **Docker Desktop** com Kubernetes habilitado
+   - Certifique-se de que o Kubernetes está ativado nas configurações do Docker Desktop
+   - Verifique com: `kubectl cluster-info`
+
+2. **kubectl** configurado e conectado ao cluster
+   - Verifique com: `kubectl get nodes`
+
+3. **Imagens Docker** construídas localmente
+   - As imagens dos microsserviços devem estar disponíveis no Docker Desktop
+   - Para build local, execute os Dockerfiles de cada microsserviço
+
+## Build das Imagens Docker
+
+Antes de fazer o deploy, você precisa construir as imagens Docker de cada microsserviço.
+
+### Método Automatizado (Recomendado)
+
+Use o script PowerShell que constrói todas as imagens automaticamente:
+
+```powershell
+cd Fase2-Orchestrator
+.\build-images.ps1
+```
+
+Este script irá:
+- Verificar se o Docker está disponível
+- Construir todas as 4 imagens na ordem correta
+- Exibir um resumo com sucesso/erros
+
+### Método Manual
+
+Se preferir construir manualmente:
+
+#### UsersAPI
+```powershell
+cd ..\Fase2-UsersAPI
+docker build -t usersapi-api:8 -f Dockerfile .
+```
+
+#### CatalogAPI
+```powershell
+cd ..\Fase2-CatalogAPI
+docker build -t catalogapi:latest -f Dockerfile .
+```
+
+#### PaymentsAPI
+```powershell
+cd ..\Fase2-PaymentsAPI
+docker build -t payments-api:latest -f Dockerfile .
+```
+
+#### NotificationsAPI
+```powershell
+cd ..\Fase2-NotificationsAPI\src
+docker build -t notifications-worker:1 -f Dockerfile .
+```
+
+### Verificar Imagens Construídas
+
+```powershell
+docker images | findstr "usersapi catalogapi payments notifications"
+```
+
+## Fluxo Completo
+
+### Opção 1: Build e Deploy Automatizado (Recomendado)
+
+Execute tudo de uma vez:
+
+```powershell
+cd Fase2-Orchestrator
+.\build-and-deploy.ps1
+```
+
+Este script irá:
+1. Construir todas as imagens Docker
+2. Fazer o deploy no Kubernetes
+3. Exibir um resumo completo
+
+### Opção 2: Passo a Passo
+
+#### 1. Construir Imagens Docker
+
+```powershell
+cd Fase2-Orchestrator
+.\build-images.ps1
+```
+
+#### 2. Deploy no Kubernetes
+
+### Deploy Completo (Recomendado)
+
+Use o Kustomize para aplicar todos os manifestos de uma vez:
+
+```powershell
+cd Fase2-Orchestrator
+kubectl apply -k k8s/
+```
+
+### Deploy Manual (Ordem Específica)
+
+Se preferir aplicar na ordem específica:
+
+```powershell
+# 1. Namespace
+kubectl apply -f k8s/namespace.yaml
+
+# 2. Secrets e ConfigMaps compartilhados
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/secrets.yaml
+
+# 3. RabbitMQ
+kubectl apply -f k8s/rabbitmq/
+
+# 4. PostgreSQL para UsersAPI
+kubectl apply -f k8s/postgres-users/
+
+# 5. PostgreSQL para CatalogAPI
+kubectl apply -f k8s/postgres-catalog/
+
+# 6. Microsserviços
+kubectl apply -f k8s/users-api/
+kubectl apply -f k8s/catalog-api/
+kubectl apply -f k8s/payments-api/
+kubectl apply -f k8s/notifications-api/
+
+# 7. Ingress (opcional)
+kubectl apply -f k8s/ingress.yaml
+```
+
+## Verificação
+
+### Verificar Status dos Pods
+
+```powershell
+# Ver todos os recursos no namespace
+kubectl get all -n fiap-gamestore
+
+# Ver pods específicos
+kubectl get pods -n fiap-gamestore
+
+# Ver status detalhado
+kubectl get pods -n fiap-gamestore -o wide
+```
+
+### Verificar Logs
+
+```powershell
+# Logs do UsersAPI
+kubectl logs -f deployment/users-api -n fiap-gamestore
+
+# Logs do CatalogAPI
+kubectl logs -f deployment/catalog-api -n fiap-gamestore
+
+# Logs do PaymentsAPI
+kubectl logs -f deployment/payments-api -n fiap-gamestore
+
+# Logs do NotificationsAPI
+kubectl logs -f deployment/notifications-api -n fiap-gamestore
+```
+
+### Verificar Services
+
+```powershell
+# Listar services
+kubectl get svc -n fiap-gamestore
+
+# Detalhes de um service
+kubectl describe svc users-api-service -n fiap-gamestore
+```
+
+## Acessar Serviços
+
+### Port-Forward para Acesso Local
+
+#### Gateway API (Recomendado - Acesso Unificado)
+
+```powershell
+# Método 1: Script automatizado (recomendado)
+.\start-gateway.ps1
+
+# Método 2: Manual
+kubectl port-forward svc/gateway-api-service 5005:8080 -n fiap-gamestore
+```
+
+**Acessar Swagger Unificado**: `http://localhost:5005`
+
+O Gateway agrega todas as APIs:
+- Users API: `http://localhost:5005/api/users/*`
+- Catalog API: `http://localhost:5005/api/games/*`
+- Payments API: `http://localhost:5005/api/payments/*`
+- Notifications API: `http://localhost:5005/api/notifications/*`
+
+#### Acesso Individual (Alternativo)
+
+```powershell
+# UsersAPI
+kubectl port-forward svc/users-api-service 8080:8080 -n fiap-gamestore
+# Acessar: http://localhost:8080
+
+# CatalogAPI
+kubectl port-forward svc/catalog-api-service 8081:8080 -n fiap-gamestore
+# Acessar: http://localhost:8081
+
+# RabbitMQ Management UI
+kubectl port-forward svc/rabbitmq-service 15672:15672 -n fiap-gamestore
+# Acessar: http://localhost:15672 (guest/guest)
+```
+
+### Acesso via NodePort (Acesso Permanente)
+
+Os seguintes serviços estão expostos via NodePort para acesso permanente sem necessidade de port-forward:
+
+#### RabbitMQ Management UI
+
+**URL**: `http://localhost:31672` (Docker Desktop) ou `http://<node-ip>:31672`
+
+**Credenciais**: 
+- Usuário: `guest`
+- Senha: `guest`
+
+**Serviço**: `rabbitmq-management` (NodePort 31672)
+
+#### UsersAPI Swagger
+
+**URL**: `http://localhost:30080/swagger` (Docker Desktop) ou `http://<node-ip>:30080/swagger`
+
+**Serviço**: `users-api-swagger` (NodePort 30080)
+
+#### CatalogAPI Swagger
+
+**URL**: `http://localhost:30081/swagger` (Docker Desktop) ou `http://<node-ip>:30081/swagger`
+
+**Serviço**: `catalog-api-swagger` (NodePort 30081)
+
+**Nota**: Para obter o IP do node em clusters externos, use: `kubectl get nodes -o wide`. No Docker Desktop, use `localhost`.
+
+## Comunicação entre Serviços
+
+- **CatalogAPI → UsersAPI**: `http://users-api-service:8080/api/users/me`
+- **Todos → RabbitMQ**: `rabbitmq-service:5672`
+- **CatalogAPI → PostgreSQL**: `postgres-catalog-service:5432` (banco individual)
+- **UsersAPI → PostgreSQL**: `postgres-users-service:5432` (banco individual)
+
+**Nota**: Cada serviço tem seu próprio PostgreSQL isolado. Não há compartilhamento de banco de dados entre serviços.
+
+## Variáveis de Ambiente
+
+### ConfigMaps
+
+Configurações não sensíveis são armazenadas em ConfigMaps:
+- URLs de serviços
+- Nomes de filas/tópicos
+- Configurações de ambiente
+
+### Secrets
+
+Dados sensíveis são armazenados em Secrets:
+- Connection strings de banco de dados
+- Senhas
+- JWT keys
+- Credenciais RabbitMQ
+
+⚠️ **IMPORTANTE**: Os Secrets neste repositório contêm credenciais em texto plano apenas para desenvolvimento. Em produção, use:
+- Sealed Secrets
+- External Secrets Operator
+- Azure Key Vault / AWS Secrets Manager / GCP Secret Manager
+- HashiCorp Vault
+
+## Troubleshooting
+
+### Pods não iniciam
+
+```powershell
+# Verificar eventos
+kubectl get events -n fiap-gamestore --sort-by='.lastTimestamp'
+
+# Descrever pod para ver erros
+kubectl describe pod <pod-name> -n fiap-gamestore
+
+# Ver logs anteriores se o pod reiniciou
+kubectl logs <pod-name> -n fiap-gamestore --previous
+```
+
+### Problemas de Conexão
+
+```powershell
+# Verificar se os services estão corretos
+kubectl get svc -n fiap-gamestore
+
+# Testar conectividade entre pods
+kubectl exec -it <pod-name> -n fiap-gamestore -- ping rabbitmq-service
+```
+
+### Problemas de Storage
+
+```powershell
+# Verificar PVCs
+kubectl get pvc -n fiap-gamestore
+
+# Ver detalhes do PVC
+kubectl describe pvc postgres-users-pvc -n fiap-gamestore
+```
+
+## Limpeza
+
+### Remover Tudo
+
+```powershell
+# Remover todos os recursos
+kubectl delete -k k8s/
+
+# Ou remover namespace (remove tudo dentro)
+kubectl delete namespace fiap-gamestore
+```
+
+⚠️ **ATENÇÃO**: Remover o namespace também remove os PVCs e dados persistentes!
+
+## Ordem de Deploy
+
+1. Namespace
+2. Secrets e ConfigMaps compartilhados
+3. RabbitMQ
+4. **PostgreSQL INDIVIDUAL para UsersAPI** (Deployment, Service, PVC, ConfigMap, Secret)
+5. **PostgreSQL INDIVIDUAL para CatalogAPI** (Deployment, Service, PVC, ConfigMap, Secret)
+6. UsersAPI (aguarda postgres-users estar pronto)
+7. CatalogAPI (aguarda postgres-catalog estar pronto)
+8. PaymentsAPI
+9. NotificationsAPI
+10. Ingress (opcional)
+
+## Validação
+
+Após o deploy, valide:
+
+- ✅ Todos os Pods estão Running
+- ✅ Comunicação entre serviços funciona
+- ✅ Fluxo de cadastro de usuário funciona
+- ✅ Fluxo de compra de jogo funciona
+- ✅ Eventos no RabbitMQ são processados corretamente
+
+## Suporte
+
+Para problemas ou dúvidas, consulte:
+- Documentação do Kubernetes: https://kubernetes.io/docs/
+- Logs dos pods: `kubectl logs -f <pod-name> -n fiap-gamestore`
+- Eventos do cluster: `kubectl get events -n fiap-gamestore --sort-by='.lastTimestamp'`

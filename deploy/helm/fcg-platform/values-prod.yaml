@@ -1,0 +1,59 @@
+# Placeholders (111111111111 e tag "initial") são substituídos automaticamente:
+#  - account ID + IRSA ARN: pelo workflow .github/workflows/terraform-aws.yml (scripts/render-values.sh)
+#  - tag de imagem: pelos workflows das APIs ao push em main (ECR + commit GitOps)
+# Veja docs/DEPLOY-AUTOMATIC.md.
+
+global:
+  imagePullPolicy: IfNotPresent
+  externalSecretStore:
+    enabled: true
+    name: aws-secretsmanager
+    kind: ClusterSecretStore
+    region: us-east-1
+    serviceAccountRef:
+      name: external-secrets
+      namespace: external-secrets
+
+services:
+  gateway:
+    image:
+      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/gateway-api
+      tag: "initial"
+    ingress:
+      enabled: true
+      className: alb
+      annotations:
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/healthcheck-path: /health
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      hosts:
+        - host: ""
+          paths:
+            - path: /
+              pathType: Prefix
+
+  users-api:
+    image:
+      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/users-api
+      tag: "initial"
+
+  catalog-api:
+    image:
+      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/catalog-api
+      tag: "initial"
+    serviceAccount:
+      create: true
+      name: catalog-api
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::111111111111:role/fcg-prod-catalog-irsa
+
+  payments-api:
+    image:
+      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/payments-api
+      tag: "initial"
+
+  notifications-api:
+    image:
+      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/notifications-api
+      tag: "initial"

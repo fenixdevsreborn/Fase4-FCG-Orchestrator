@@ -1,0 +1,251 @@
+version: '3.8'
+
+networks:
+  fiap-network:
+    driver: bridge
+
+volumes:
+  postgres-catalog-data:
+  postgres-users-data:
+  rabbitmq-data:
+
+services:
+  # ============================================
+  # Infrastructure Services
+  # ============================================
+  
+  postgres-catalog:
+    image: postgres:16-alpine
+    container_name: fiap-postgres-catalog
+    environment:
+      POSTGRES_DB: catalogdb
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-catalog-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d catalogdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fiap-network
+
+  postgres-users:
+    image: postgres:16-alpine
+    container_name: fiap-postgres-users
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-users-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d users_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fiap-network
+
+  rabbitmq:
+    image: rabbitmq:4.0-management-alpine
+    container_name: fiap-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - fiap-network
+
+  # ============================================
+  # Microservices
+  # ============================================
+
+  auth-service:
+    build:
+      context: ../Fase2-CatalogAPI/auth-service
+      dockerfile: Dockerfile
+    container_name: fiap-auth-service
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+    networks:
+      - fiap-network
+    restart: on-failure
+
+  catalog-api:
+    build:
+      context: ../Fase2-CatalogAPI
+      dockerfile: Dockerfile
+    container_name: fiap-catalog-api
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__CatalogDatabase: "Host=postgres-catalog;Port=5432;Database=catalogdb;Username=admin;Password=admin123"
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Port: 5672
+      RabbitMQ__Username: guest
+      RabbitMQ__Password: guest
+      AuthService__BaseUrl: http://auth-service:3000
+    depends_on:
+      postgres-catalog:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - fiap-network
+
+  users-api:
+    build:
+      context: ../Fase2-UsersAPI
+      dockerfile: Dockerfile
+    container_name: fiap-users-api
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres-users;Port=5432;Database=users_db;Username=postgres;Password=postgres"
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Port: 5672
+      RabbitMQ__Username: guest
+      RabbitMQ__Password: guest
+      Jwt__Key: super-secret-docker-key-change-this-32chars-min
+      MT_LICENSE: Community
+    depends_on:
+      postgres-users:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - fiap-network
+
+  payments-api:
+    build:
+      context: ../Fase2-PaymentsAPI
+      dockerfile: Dockerfile
+    container_name: fiap-payments-api
+    ports:
+      - "8082:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Port: 5672
+      RabbitMQ__Username: guest
+      RabbitMQ__Password: guest
+      MT_LICENSE: Community
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - fiap-network
+
+  notifications-api:
+    build:
+      context: ../Fase2-NotificationsAPI/src
+      dockerfile: Dockerfile
+    container_name: fiap-notifications-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      RABBITMQ_HOST: rabbitmq
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Port: 5672
+      RabbitMQ__Username: guest
+      RabbitMQ__Password: guest
+      QUEUE_USER_CREATED: user-created-event
+      QUEUE_PAYMENT_PROCESSED: payment-processed-event
+      MT_LICENSE: Community
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - fiap-network
+
+  gateway-api:
+    build:
+      context: ./src
+      dockerfile: Gateway.Api/Dockerfile
+    container_name: fiap-gateway-api
+    ports:
+      - "8000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      # Gateway routes configuration
+      Services__CatalogApi: http://catalog-api:8080
+      Services__UsersApi: http://users-api:8080
+      Services__PaymentsApi: http://payments-api:8080
+      Services__AuthService: http://auth-service:3000
+    depends_on:
+      catalog-api:
+        condition: service_healthy
+      users-api:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      payments-api:
+        condition: service_started
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - fiap-network
+
+  # ============================================
+  # Database Management UI
+  # ============================================
+
+  adminer:
+    image: adminer
+    container_name: fiap-adminer
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres-catalog
+      - postgres-users
+    networks:
+      - fiap-network
+    restart: on-failure

@@ -1,0 +1,135 @@
+name: terraform-aws
+
+# Requer:
+#  - secret AWS_GITHUB_ROLE_ARN (output do stack bootstrap)
+#  - variable TF_STATE_BUCKET (output do stack bootstrap)
+#  - variable TF_LOCK_TABLE (output do stack bootstrap)
+#  - variable GITOPS_REPO_URL (https://github.com/<org>/Fase2-Orchestrator.git)
+# Opcional:
+#  - environment "prod" com required reviewers para gate manual antes do apply
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/aws/**"
+      - "deploy/helm/fcg-platform/**"
+      - ".github/workflows/terraform-aws.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/aws/**"
+      - "deploy/helm/fcg-platform/**"
+      - ".github/workflows/terraform-aws.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  TF_WORKING_DIR: infra/terraform/aws
+  TF_STATE_KEY: aws/prod/terraform.tfstate
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+
+      - name: Terraform fmt
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Terraform plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -input=false -var-file=environments/prod.tfvars -out=tfplan
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-aws-plan
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+
+  apply:
+    needs: plan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -input=false -auto-approve -var-file=environments/prod.tfvars
+
+      - name: Capture Terraform outputs
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform output -json > "${GITHUB_WORKSPACE}/tf-outputs.json"
+
+      - name: Render Helm values and Argo CD manifests
+        env:
+          GITOPS_REPO_URL: ${{ vars.GITOPS_REPO_URL }}
+        run: bash scripts/render-values.sh tf-outputs.json
+
+      - name: Commit rendered values back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deploy/helm/fcg-platform/values-prod.yaml gitops/argocd/fcg-platform-application.yaml gitops/argocd/fcg-platform-project.yaml
+          if git diff --cached --quiet; then
+            echo "No rendered changes to commit."
+            exit 0
+          fi
+          git commit -m "ci(terraform): render values-prod.yaml and Argo CD manifests"
+          git push

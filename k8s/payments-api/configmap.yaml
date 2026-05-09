@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payments-api-config
+  namespace: fiap-gamestore
+  labels:
+    app: payments-api
+data:
+  RabbitMQ__Host: "rabbitmq-service"
+  RabbitMQ__Port: "5672"
+  RabbitMQ__VirtualHost: "/"
+  QUEUE_ORDER_PLACED: "order-placed-event"

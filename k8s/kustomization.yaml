@@ -1,0 +1,65 @@
+# Kustomization file para facilitar o deploy
+# Uso: kubectl apply -k k8s/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: fiap-gamestore
+
+resources:
+  # Namespace
+  - namespace.yaml
+  
+  # ConfigMaps e Secrets compartilhados
+  - configmap.yaml
+  - secrets.yaml
+  
+  # RabbitMQ (compartilhado)
+  - rabbitmq/pvc.yaml
+  - rabbitmq/deployment.yaml
+  - rabbitmq/service.yaml
+  - rabbitmq/service-management.yaml
+  
+  # PostgreSQL para UsersAPI
+  - postgres-users/pvc.yaml
+  - postgres-users/configmap.yaml
+  - postgres-users/secret.yaml
+  - postgres-users/deployment.yaml
+  - postgres-users/service.yaml
+  
+  # PostgreSQL para CatalogAPI
+  - postgres-catalog/pvc.yaml
+  - postgres-catalog/configmap.yaml
+  - postgres-catalog/secret.yaml
+  - postgres-catalog/deployment.yaml
+  - postgres-catalog/service.yaml
+  
+  # Microsserviços
+  - users-api/configmap.yaml
+  - users-api/secret.yaml
+  - users-api/deployment.yaml
+  - users-api/service.yaml
+  - users-api/service-swagger.yaml
+  
+  - catalog-api/configmap.yaml
+  - catalog-api/secret.yaml
+  - catalog-api/deployment.yaml
+  - catalog-api/service.yaml
+  - catalog-api/service-swagger.yaml
+  
+  - payments-api/configmap.yaml
+  - payments-api/secret.yaml
+  - payments-api/deployment.yaml
+  - payments-api/service.yaml
+  
+  - notifications-api/configmap.yaml
+  - notifications-api/secret.yaml
+  - notifications-api/deployment.yaml
+  - notifications-api/service.yaml
+  
+  # Gateway API
+  - gateway-api/configmap.yaml
+  - gateway-api/deployment.yaml
+  - gateway-api/service.yaml
+  
+  # Ingress (opcional)
+  - ingress.yaml

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fcg-platform
+description: Helm chart for the FIAP Cloud Games platform on EKS
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

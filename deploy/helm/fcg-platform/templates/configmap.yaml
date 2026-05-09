@@ -1,0 +1,16 @@
+{{- range $name, $service := .Values.services }}
+{{- if and $service.enabled $service.env }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-config
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "fcg-platform.labels" $ | nindent 4 }}
+data:
+{{- range $key, $value := $service.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+---
+{{- end }}
+{{- end }}

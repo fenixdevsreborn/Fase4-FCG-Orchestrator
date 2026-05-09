@@ -1,0 +1,13 @@
+aws_region   = "us-east-1"
+project_name = "fcg"
+environment  = "prod"
+
+# Replace with your GitHub org/user and repository names
+github_org = "your-org"
+github_repos = [
+  "Fase2-Orchestrator",
+  "Fase2-UsersAPI",
+  "Fase2-CatalogAPI",
+  "Fase2-PaymentsAPI",
+  "Fase2-NotificationsAPI"
+]

@@ -1,0 +1,21 @@
+{{- range $name, $service := .Values.services }}
+{{- if and $service.enabled $service.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ default (printf "%s-service" $name) $service.service.name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "fcg-platform.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+  ports:
+    - name: http
+      port: {{ $service.service.port }}
+      targetPort: {{ $service.service.targetPort }}
+      protocol: TCP
+---
+{{- end }}
+{{- end }}

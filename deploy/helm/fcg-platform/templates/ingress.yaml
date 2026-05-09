@@ -1,0 +1,33 @@
+{{- range $name, $service := .Values.services }}
+{{- if and $service.enabled $service.ingress $service.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "fcg-platform.labels" $ | nindent 4 }}
+  {{- with $service.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ $service.ingress.className }}
+  rules:
+    {{- range $host := $service.ingress.hosts }}
+    - host: {{ $host.host | quote }}
+      http:
+        paths:
+          {{- range $path := $host.paths }}
+          - path: {{ $path.path }}
+            pathType: {{ $path.pathType }}
+            backend:
+              service:
+                name: {{ default (printf "%s-service" $name) $service.service.name }}
+                port:
+                  number: {{ $service.service.port }}
+          {{- end }}
+    {{- end }}
+---
+{{- end }}
+{{- end }}

@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: fcg-platform
+  namespace: argocd
+spec:
+  description: GitOps project for the FIAP Cloud Games platform
+  sourceRepos:
+    - https://github.com/your-org/your-repo.git
+  destinations:
+    - namespace: fcg-platform
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fcg-platform
+  namespace: argocd
+spec:
+  project: fcg-platform
+  source:
+    repoURL: https://github.com/your-org/your-repo.git
+    targetRevision: main
+    path: deploy/helm/fcg-platform
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: fcg-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

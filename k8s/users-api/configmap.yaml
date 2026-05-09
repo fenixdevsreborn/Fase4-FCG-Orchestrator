@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: users-api-config
+  namespace: fiap-gamestore
+  labels:
+    app: users-api
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+  RabbitMQ__Host: "rabbitmq-service"
+  RabbitMQ__Port: "5672"
+  RabbitMQ__VirtualHost: "/"
+  Jwt__Issuer: "UsersAPI"
+  Jwt__Audience: "UsersAPI"

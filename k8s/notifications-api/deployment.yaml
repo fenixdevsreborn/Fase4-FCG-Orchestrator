@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifications-api
+  namespace: fiap-gamestore
+  labels:
+    app: notifications-api
+    component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notifications-api
+  template:
+    metadata:
+      labels:
+        app: notifications-api
+        component: worker
+    spec:
+      containers:
+      - name: notifications-api
+        image: notifications-worker:1
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: notifications-api-config
+        - secretRef:
+            name: notifications-api-secret
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL

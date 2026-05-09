@@ -1,0 +1,347 @@
+global:
+  imagePullPolicy: IfNotPresent
+  externalSecretStore:
+    enabled: true
+    name: aws-secretsmanager
+    kind: ClusterSecretStore
+    region: us-east-1
+    serviceAccountRef:
+      name: external-secrets
+      namespace: external-secrets
+
+services:
+  gateway:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: gateway-api
+      tag: latest
+    containerPort: 8080
+    service:
+      enabled: true
+      name: gateway-api-service
+      port: 80
+      targetPort: 8080
+    env:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      Services__CatalogApi: http://catalog-api
+      Services__UsersApi: http://users-api
+      Services__PaymentsApi: http://payments-api
+      Services__AuthService: http://users-api
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 30
+      periodSeconds: 30
+    ingress:
+      enabled: true
+      className: alb
+      annotations:
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/healthcheck-path: /health
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      hosts:
+        - host: ""
+          paths:
+            - path: /
+              pathType: Prefix
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 70
+
+  users-api:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: users-api
+      tag: latest
+    containerPort: 8080
+    service:
+      enabled: true
+      name: users-api-service
+      port: 8080
+      targetPort: 8080
+    env:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      RabbitMQ__Port: "5671"
+      RabbitMQ__VirtualHost: /
+      Jwt__Issuer: UsersAPI
+      Jwt__Audience: UsersAPI
+    secretRefs:
+      - users-api-secrets
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 10
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 45
+      periodSeconds: 30
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 70
+    externalSecrets:
+      - name: users-api-secrets
+        refreshInterval: 1h
+        data:
+          - secretKey: ConnectionStrings__DefaultConnection
+            remoteRef:
+              key: fcg/prod/users-api
+              property: ConnectionStrings__DefaultConnection
+          - secretKey: RabbitMQ__Host
+            remoteRef:
+              key: fcg/prod/users-api
+              property: RabbitMQ__Host
+          - secretKey: RabbitMQ__Username
+            remoteRef:
+              key: fcg/prod/users-api
+              property: RabbitMQ__Username
+          - secretKey: RabbitMQ__Password
+            remoteRef:
+              key: fcg/prod/users-api
+              property: RabbitMQ__Password
+          - secretKey: Jwt__Key
+            remoteRef:
+              key: fcg/prod/users-api
+              property: Jwt__Key
+
+  catalog-api:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: catalog-api
+      tag: latest
+    containerPort: 8080
+    service:
+      enabled: true
+      name: catalog-api-service
+      port: 8080
+      targetPort: 8080
+    serviceAccount:
+      create: true
+      name: catalog-api
+      annotations: {}
+    env:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      RabbitMQ__Port: "5671"
+      RabbitMQ__VirtualHost: /
+      CatalogCache__DefaultTtlMinutes: "5"
+      DynamoDb__Enabled: "true"
+      OpenSearch__Enabled: "true"
+      AuthService__BaseUrl: http://users-api:8080
+    secretRefs:
+      - catalog-api-secrets
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 20
+      periodSeconds: 10
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 60
+      periodSeconds: 30
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+    externalSecrets:
+      - name: catalog-api-secrets
+        refreshInterval: 1h
+        data:
+          - secretKey: ConnectionStrings__CatalogDatabase
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: ConnectionStrings__CatalogDatabase
+          - secretKey: RabbitMQ__Host
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: RabbitMQ__Host
+          - secretKey: RabbitMQ__Username
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: RabbitMQ__Username
+          - secretKey: RabbitMQ__Password
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: RabbitMQ__Password
+          - secretKey: CatalogCache__ConnectionString
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: CatalogCache__ConnectionString
+          - secretKey: DynamoDb__TableName
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: DynamoDb__TableName
+          - secretKey: DynamoDb__Region
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: DynamoDb__Region
+          - secretKey: OpenSearch__Endpoint
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: OpenSearch__Endpoint
+          - secretKey: OpenSearch__IndexName
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: OpenSearch__IndexName
+          - secretKey: OpenSearch__Username
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: OpenSearch__Username
+          - secretKey: OpenSearch__Password
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: OpenSearch__Password
+
+  payments-api:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: payments-api
+      tag: latest
+    containerPort: 8080
+    service:
+      enabled: true
+      name: payments-api-service
+      port: 80
+      targetPort: 8080
+    env:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      RabbitMQ__Port: "5671"
+      RabbitMQ__VirtualHost: /
+    secretRefs:
+      - payments-api-secrets
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 10
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 45
+      periodSeconds: 30
+    externalSecrets:
+      - name: payments-api-secrets
+        refreshInterval: 1h
+        data:
+          - secretKey: RabbitMQ__Host
+            remoteRef:
+              key: fcg/prod/payments-api
+              property: RabbitMQ__Host
+          - secretKey: RabbitMQ__Username
+            remoteRef:
+              key: fcg/prod/payments-api
+              property: RabbitMQ__Username
+          - secretKey: RabbitMQ__Password
+            remoteRef:
+              key: fcg/prod/payments-api
+              property: RabbitMQ__Password
+
+  notifications-api:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: notifications-api
+      tag: latest
+    containerPort: 8080
+    service:
+      enabled: true
+      name: notifications-api-service
+      port: 80
+      targetPort: 8080
+    env:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      RABBITMQ_PORT: "5671"
+    secretRefs:
+      - notifications-api-secrets
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 10
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 45
+      periodSeconds: 30
+    externalSecrets:
+      - name: notifications-api-secrets
+        refreshInterval: 1h
+        data:
+          - secretKey: RABBITMQ_HOST
+            remoteRef:
+              key: fcg/prod/notifications-api
+              property: RABBITMQ_HOST
+          - secretKey: RABBITMQ_USERNAME
+            remoteRef:
+              key: fcg/prod/notifications-api
+              property: RABBITMQ_USERNAME
+          - secretKey: RABBITMQ_PASSWORD
+            remoteRef:
+              key: fcg/prod/notifications-api
+              property: RABBITMQ_PASSWORD

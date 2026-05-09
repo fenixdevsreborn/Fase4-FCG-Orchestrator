@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-config
+  namespace: fiap-gamestore
+  labels:
+    app: fiap-gamestore
+data:
+  # Configurações compartilhadas do RabbitMQ
+  RABBITMQ_HOST: "rabbitmq-service"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_VIRTUAL_HOST: "/"
+  
+  # Nomes de filas/tópicos compartilhados
+  QUEUE_ORDER_PLACED: "order-placed-event"
+  QUEUE_PAYMENT_PROCESSED: "payment-processed-event"
+  QUEUE_USER_CREATED: "user-created-event"
