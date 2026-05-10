@@ -104,13 +104,17 @@ jobs:
           docker push "${DOCKERHUB_IMAGE}:${IMAGE_TAG}"
           docker push "${DOCKERHUB_IMAGE}:latest"
 
-      - name: Scan image with Trivy (SARIF)
+      - name: Instalar Trivy
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
-        with:
-          image-ref: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          format: sarif
-          output: trivy-results.sarif
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin v0.70.0
+
+      - name: Scan image com Trivy (SARIF)
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+        run: |
+          trivy image --format sarif --output trivy-results.sarif \
+            "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
       - name: Upload Trivy SARIF to GitHub Security
         if: always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master'))
@@ -120,13 +124,9 @@ jobs:
 
       - name: Gate on Trivy CRITICAL/HIGH
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
-        with:
-          image-ref: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
+        run: |
+          trivy image --format table --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH \
+            "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
       - name: Update GitOps values file
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
