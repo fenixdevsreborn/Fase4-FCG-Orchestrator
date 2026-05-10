@@ -177,3 +177,42 @@ jobs:
           fi
           git commit -m "ci(terraform): render values-prod.yaml and Argo CD manifests"
           git push
+
+      # ----------------------------------------------------------------
+      # Passo 03 — Registrar Argo CD Application no cluster (automatizado)
+      # O Argo CD já foi instalado pelo eks_blueprints_addons.
+      # Este step registra o AppProject e a Application que apontam para
+      # este repositório, habilitando o GitOps automático.
+      # ----------------------------------------------------------------
+      - name: Conectar ao cluster EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name fcg-prod
+          kubectl cluster-info
+
+      - name: Aguardar Argo CD estar pronto
+        run: |
+          echo "Aguardando pods do Argo CD ficarem Running..."
+          kubectl wait pod \
+            --namespace argocd \
+            --for=condition=Ready \
+            --selector=app.kubernetes.io/part-of=argocd \
+            --timeout=300s
+          echo "✅ Argo CD está pronto."
+
+      - name: Registrar AppProject e Application do Argo CD
+        run: |
+          echo "Aplicando AppProject..."
+          kubectl apply -f gitops/argocd/fcg-platform-project.yaml
+
+          echo "Aplicando Application..."
+          kubectl apply -f gitops/argocd/fcg-platform-application.yaml
+
+          echo ""
+          echo "Status da Application:"
+          kubectl -n argocd get application fcg-platform -o wide || true
+
+          echo ""
+          echo "✅ Argo CD registrado. Sincronizará automaticamente quando as imagens estiverem no ECR."
+          echo "   Próximo passo: disparar workflow_dispatch em cada API para subir as primeiras imagens."
