@@ -203,15 +203,37 @@ jobs:
             -backend-config="use_lockfile=true" \
             -backend-config="encrypt=true"
 
+      - name: Passo 3/4 — Liberar state lock (se existir de run anterior)
+        working-directory: ${{ env.TF_PLATFORM_DIR }}
+        run: |
+          # Verifica se existe um lock ativo e força a liberação.
+          # Seguro para destroy: não há risco de corromper o state.
+          LOCK_ID=$(aws dynamodb get-item \
+            --table-name "${{ vars.TF_LOCK_TABLE }}" \
+            --key '{"LockID": {"S": "${{ env.TF_STATE_KEY }}"}}' \
+            --query 'Item.Info.S' \
+            --output text 2>/dev/null \
+            | python3 -c "import sys,json; d=json.load(sys.stdin if False else __import__('io').StringIO(sys.stdin.read())); print(d.get('ID',''))" 2>/dev/null || echo "")
+
+          if [[ -n "${LOCK_ID}" && "${LOCK_ID}" != "None" ]]; then
+            echo "Lock ativo encontrado: ${LOCK_ID}. Forçando liberação..."
+            terraform force-unlock -force "${LOCK_ID}" || true
+            echo "  ✓ Lock liberado."
+          else
+            echo "Nenhum lock ativo encontrado. Prosseguindo."
+          fi
+
       - name: Passo 3/4 — Terraform destroy (plataforma AWS)
         working-directory: ${{ env.TF_PLATFORM_DIR }}
         run: |
           echo "⚠️  Destruindo plataforma AWS FCG (EKS, RDS, Redis, MQ, OpenSearch...)."
           echo "Isso leva aproximadamente 15-25 minutos."
           echo ""
+          # -lock=false: seguro para destroy (operação unidirecional, sem risco de corrupção)
           terraform destroy \
             -input=false \
             -auto-approve \
+            -lock=false \
             -var-file=environments/prod.tfvars
           echo ""
           echo "✅ Plataforma AWS destruída."
