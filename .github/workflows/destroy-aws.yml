@@ -274,6 +274,50 @@ jobs:
               || echo "  ⚠ ${sg}: ainda tem dependências, o Terraform vai tentar novamente"
           done
 
+          # --- NAT Gateways (impedem liberação dos EIPs) ---
+          echo ""
+          echo "--- Deletando NAT Gateways ---"
+          NAT_GWS=$(aws ec2 describe-nat-gateways \
+            --filter "Name=vpc-id,Values=${VPC_ID}" \
+                     "Name=state,Values=available,pending" \
+            --query 'NatGateways[].NatGatewayId' \
+            --output text 2>/dev/null || echo "")
+
+          if [[ -n "${NAT_GWS}" && "${NAT_GWS}" != "None" ]]; then
+            for nat in ${NAT_GWS}; do
+              echo "  Deletando NAT Gateway: ${nat}"
+              aws ec2 delete-nat-gateway --nat-gateway-id "${nat}"
+            done
+            echo "  Aguardando 60s para NAT Gateways serem removidos..."
+            sleep 60
+          else
+            echo "  Nenhum NAT Gateway encontrado."
+          fi
+
+          # --- Elastic IPs (EIPs do NAT Gateway) ---
+          echo ""
+          echo "--- Liberando Elastic IPs ---"
+          EIPS=$(aws ec2 describe-addresses \
+            --filters "Name=tag:Name,Values=*fcg*" \
+            --query 'Addresses[].AllocationId' \
+            --output text 2>/dev/null || echo "")
+
+          # Também busca EIPs não associados no VPC (órfãos)
+          EIPS_ORPHAN=$(aws ec2 describe-addresses \
+            --filters "Name=domain,Values=vpc" \
+            --query 'Addresses[?AssociationId==null].AllocationId' \
+            --output text 2>/dev/null || echo "")
+
+          ALL_EIPS=$(echo "${EIPS} ${EIPS_ORPHAN}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+
+          for alloc_id in ${ALL_EIPS}; do
+            [[ -z "${alloc_id}" || "${alloc_id}" == "None" ]] && continue
+            echo "  Liberando EIP: ${alloc_id}"
+            aws ec2 release-address --allocation-id "${alloc_id}" 2>/dev/null \
+              && echo "  ✓ ${alloc_id}" \
+              || echo "  ⚠ ${alloc_id}: ainda associado, ignorando"
+          done
+
           echo ""
           echo "✅ Limpeza de recursos K8s residuais concluída."
 
