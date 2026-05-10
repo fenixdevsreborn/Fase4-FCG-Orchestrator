@@ -1,22 +1,64 @@
-# Fase2-Orchestrator - Orquestração Kubernetes
+# Fase4-FCG-Orchestrator — Plataforma + Gateway
 
-Este repositório contém o **Gateway (YARP)**, manifestos Kubernetes locais (`k8s/`) e a **plataforma AWS Fase 4**: Terraform, Helm (`fcg-platform`), GitOps (Argo CD) e scripts de validação.
+Este repositório é o **centro da plataforma FCG na Fase 4**. Contém:
 
-Para deploy na AWS:
-- 📘 [docs/DEPLOY-AUTOMATIC.md](docs/DEPLOY-AUTOMATIC.md) — fluxo automático ponta-a-ponta
-- 📋 [docs/MANUAL-STEPS.md](docs/MANUAL-STEPS.md) — checklist do que precisa ser feito à mão (uma única vez)
-- 🎯 [docs/FASE4-COMPLIANCE.md](docs/FASE4-COMPLIANCE.md) — mapa de cumprimento dos requisitos do Tech Challenge
-- 📐 [docs/AWS-PLATFORM.md](docs/AWS-PLATFORM.md) — visão geral da arquitetura
+- **Gateway YARP** (`src/Gateway.Api/`) — entrypoint HTTP único
+- **Manifestos Kubernetes locais** (`k8s/`) — para Docker Desktop / cluster de dev
+- **Plataforma AWS Fase 4**: Terraform (`infra/`), Helm chart `fcg-platform` (`deploy/helm/`), GitOps Argo CD (`gitops/`), scripts de bootstrap e smoke-test (`scripts/`)
+- **Pipelines GitHub Actions** (`.github/workflows/`) — `terraform-aws.yml` e `gateway-api-ci-cd.yml`
+
+> **Branch alvo das pipelines:** `master`.
+> **Registries:** AWS ECR (privado, exigido pelo Tech Challenge) **e** Docker Hub (público, paralelo).
+> **Repositórios padronizados:** `Fase4-FCG-Orchestrator`, `Fase4-FCG-UsersAPI`, `Fase4-FCG-CatalogAPI`, `Fase4-FCG-PaymentsAPI`, `Fase4-FCG-NotificationsAPI`.
+
+## ⚠️ Antes de qualquer deploy automático leia, nesta ordem:
+
+1. 🚀 **[docs/BOOTSTRAP.md](docs/BOOTSTRAP.md)** — bootstrap AWS via GitHub Actions (sem instalar nada localmente) **ou** via Terraform local. Inclui passo a passo para criar Access Key na tela do IAM Console.
+2. 📋 **[docs/MANUAL-STEPS.md](docs/MANUAL-STEPS.md)** — checklist completo: repos GitHub + Docker Hub, GitHub App, secrets, Argo CD.
+3. 🔑 **[docs/SECRETS-MANAGEMENT.md](docs/SECRETS-MANAGEMENT.md)** — Cloudflare (por que não serve), Doppler, GitHub Org Secrets, OIDC. **Leia para decidir como gerenciar secrets sem configuração manual por repo.**
+4. 📘 [docs/DEPLOY-AUTOMATIC.md](docs/DEPLOY-AUTOMATIC.md) — fluxo automático ponta-a-ponta.
+5. 🔐 [docs/SECURITY-SETUP.md](docs/SECURITY-SETUP.md) — GitHub App (GitOps), branch protection, secret scanning.
+6. 🚑 [docs/DISASTER-RECOVERY.md](docs/DISASTER-RECOVERY.md) — rollback, restore RDS, reconstrução de cluster.
+7. 📊 [docs/ENV-VARS.md](docs/ENV-VARS.md) — padrão de variáveis de ambiente.
+8. 🎯 [docs/FASE4-COMPLIANCE.md](docs/FASE4-COMPLIANCE.md) — mapa dos requisitos do Tech Challenge.
+9. 📐 [docs/AWS-PLATFORM.md](docs/AWS-PLATFORM.md) — visão geral da arquitetura.
+10. 💡 [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) — melhorias implementadas e pendentes.
+
+## Resumo de **toda configuração manual obrigatória** (TL;DR)
+
+| # | Tarefa | Onde | Doc |
+|---|--------|------|-----|
+| 1 | Criar usuário IAM `fcg-bootstrap-admin` + Access Key (selecionar "Outros") | AWS Console | BOOTSTRAP.md |
+| 2 | Criar 5 repos GitHub `Fase4-FCG-*` com **branch padrão `master`** | github.com | MANUAL-STEPS §1 |
+| 3 | Criar 5 repos Docker Hub `<user>/fcg-*-api` + gerar PAT Read/Write | hub.docker.com | MANUAL-STEPS §2 |
+| 4 | Criar **GitHub App `FCG GitOps`** + baixar `.pem` | github.com | SECURITY-SETUP.md §1 |
+| 5 | Configurar secrets temporários + disparar workflow `bootstrap-aws` | GitHub Actions | BOOTSTRAP.md §Caminho A |
+| 6 | **Excluir** Access Key e secrets de bootstrap do GitHub e da AWS | AWS + GitHub | BOOTSTRAP.md §Passo 6 |
+| 7 | Configurar **GitHub Org Secrets** (se org) ou **Doppler** (se conta pessoal) | github.com ou doppler.com | SECRETS-MANAGEMENT.md |
+| 8 | Editar `gitops/argocd/*.yaml` → `repoURL` real | git commit | MANUAL-STEPS §5 |
+| 9 | Push em `master` → dispara Terraform da plataforma (EKS, ECR, RDS...) | terminal | MANUAL-STEPS §6 |
+| 10 | `workflow_dispatch` em cada API (primeira imagem) | GitHub UI | MANUAL-STEPS §7 |
+| 11 | `kubectl apply -f gitops/argocd/` (registra Argo CD) | terminal | MANUAL-STEPS §8 |
+
+> **Pastas locais já foram renomeadas** para `Fase4-FCG-*`. Renomeie também no GitHub em Settings → Repository name se necessário.
+
+---
+
+## Estrutura
 
 ## Estrutura
 
 ```
-Fase2-Orchestrator/
-├── infra/terraform/aws/     # Fase 4 AWS (EKS, ECR, dados gerenciados)
+Fase4-FCG-Orchestrator/
+├── .github/workflows/       # terraform-aws.yml + gateway-api-ci-cd.yml (push em master)
+├── infra/
+│   ├── terraform/bootstrap/ # OIDC, IAM role GitHub Actions, S3 state, DynamoDB lock
+│   └── terraform/aws/       # EKS, ECR (5 repos), RDSx2, MQ, Redis, OpenSearch, DynamoDB
 ├── deploy/helm/fcg-platform/ # Chart Helm de produção (Argo CD)
-├── gitops/argocd/           # Projeto e Application Argo CD
-├── scripts/                 # smoke-test.ps1 (ALB)
-├── src/                     # Gateway.Api (.NET)
+├── gitops/argocd/           # AppProject + Application (targetRevision: master)
+├── scripts/                 # render-values.sh + smoke-test.ps1 (ALB)
+├── src/                     # Gateway.Api (.NET) — entrypoint YARP
+├── docs/                    # MANUAL-STEPS, DEPLOY-AUTOMATIC, FASE4-COMPLIANCE, IMPROVEMENTS
 ├── k8s/
 │   ├── namespace.yaml                    # Namespace único para todos os serviços
 │   ├── configmap.yaml                    # Configurações compartilhadas (RabbitMQ, etc)
@@ -85,7 +127,7 @@ Antes de fazer o deploy, você precisa construir as imagens Docker de cada micro
 Use o script PowerShell que constrói todas as imagens automaticamente:
 
 ```powershell
-cd Fase2-Orchestrator
+cd Fase4-FCG-Orchestrator
 .\build-images.ps1
 ```
 
@@ -100,25 +142,25 @@ Se preferir construir manualmente:
 
 #### UsersAPI
 ```powershell
-cd ..\Fase2-UsersAPI
+cd ..\Fase4-FCG-UsersAPI
 docker build -t usersapi-api:8 -f Dockerfile .
 ```
 
 #### CatalogAPI
 ```powershell
-cd ..\Fase2-CatalogAPI
+cd ..\Fase4-FCG-CatalogAPI
 docker build -t catalogapi:latest -f Dockerfile .
 ```
 
 #### PaymentsAPI
 ```powershell
-cd ..\Fase2-PaymentsAPI
+cd ..\Fase4-FCG-PaymentsAPI
 docker build -t payments-api:latest -f Dockerfile .
 ```
 
 #### NotificationsAPI
 ```powershell
-cd ..\Fase2-NotificationsAPI\src
+cd ..\Fase4-FCG-NotificationsAPI\src
 docker build -t notifications-worker:1 -f Dockerfile .
 ```
 
@@ -135,7 +177,7 @@ docker images | findstr "usersapi catalogapi payments notifications"
 Execute tudo de uma vez:
 
 ```powershell
-cd Fase2-Orchestrator
+cd Fase4-FCG-Orchestrator
 .\build-and-deploy.ps1
 ```
 
@@ -149,7 +191,7 @@ Este script irá:
 #### 1. Construir Imagens Docker
 
 ```powershell
-cd Fase2-Orchestrator
+cd Fase4-FCG-Orchestrator
 .\build-images.ps1
 ```
 
@@ -160,7 +202,7 @@ cd Fase2-Orchestrator
 Use o Kustomize para aplicar todos os manifestos de uma vez:
 
 ```powershell
-cd Fase2-Orchestrator
+cd Fase4-FCG-Orchestrator
 kubectl apply -k k8s/
 ```
 

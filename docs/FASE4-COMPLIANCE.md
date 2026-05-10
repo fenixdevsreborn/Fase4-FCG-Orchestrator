@@ -25,12 +25,13 @@ Cruzamento dos requisitos do Tech Challenge (FASE 4) com a implementação atual
 
 ## Itens "desejáveis" entregues além do mínimo
 
-- **GitOps com Argo CD** (`gitops/argocd/`) — disparo de deploy via commit em `values-prod.yaml`
+- **GitOps com Argo CD** (`gitops/argocd/`) — disparo de deploy via commit em `values-prod.yaml` (branch `master`)
 - **Bootstrap automatizado** (`infra/terraform/bootstrap/`) — provedor OIDC + IAM role + state backend
 - **HPA** em todos os serviços (`templates/hpa.yaml`)
 - **IRSA** dedicado para o CatalogAPI acessar DynamoDB sem credenciais de longa duração
 - **Auditoria de pacotes NuGet** em todas as pipelines (falha em High/Critical)
 - **Multi-AZ** em RDS subnet group, OpenSearch (`zone_awareness_enabled`) e EKS
+- **Push paralelo Docker Hub** — além do ECR (privado, exigido pelo spec), as imagens são publicadas em Docker Hub para portabilidade e demo do vídeo Pitch
 
 ## Itens cuja garantia depende de configuração externa
 
@@ -45,7 +46,7 @@ Cruzamento dos requisitos do Tech Challenge (FASE 4) com a implementação atual
 
 1. **Mostrar painel AWS**: Console EKS → cluster `fcg-prod`; Console ECR → 5 repositórios.
 2. **Mostrar pods rodando**: `kubectl -n fcg-platform get pods,svc,ingress`.
-3. **Live deploy**: alterar um endpoint trivial em `Fase2-CatalogAPI` → `git push` → mostrar pipeline GitHub Actions concluindo, Argo CD sincronizando, e novo pod rolling-update no `kubectl get pods -w`.
+3. **Live deploy**: alterar um endpoint trivial em `Fase4-FCG-CatalogAPI` → `git push origin master` → mostrar pipeline GitHub Actions concluindo, Argo CD sincronizando, e novo pod rolling-update no `kubectl get pods -w`.
 4. **Cache em ação**: `curl /api/v1/games` duas vezes; primeiro hit gera log de DB query, segundo hit não (logs do CatalogAPI).
 5. **Busca fuzzy**: `curl "/api/v1/games/search?q=zeldaa"` retornando "The Legend of Zelda" com `score` ordenado.
 6. **NoSQL**: console DynamoDB → tabela `fcg-prod-catalog-metadata` com items.

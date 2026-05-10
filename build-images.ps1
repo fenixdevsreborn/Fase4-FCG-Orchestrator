@@ -74,7 +74,7 @@ function Build-Image {
 }
 
 # 1. UsersAPI
-$usersApiContext = Join-Path $baseDir "Fase2-UsersAPI"
+$usersApiContext = Join-Path $baseDir "Fase4-FCG-UsersAPI"
 $usersApiDockerfile = Join-Path $usersApiContext "Dockerfile"
 if (-not (Build-Image -ServiceName "1. UsersAPI" -ImageName "usersapi-api" -ImageTag "8" -DockerfilePath $usersApiDockerfile -BuildContext $usersApiContext)) {
     $errors += "UsersAPI"
@@ -82,7 +82,7 @@ if (-not (Build-Image -ServiceName "1. UsersAPI" -ImageName "usersapi-api" -Imag
 Write-Host ""
 
 # 2. CatalogAPI
-$catalogApiContext = Join-Path $baseDir "Fase2-CatalogAPI"
+$catalogApiContext = Join-Path $baseDir "Fase4-FCG-CatalogAPI"
 $catalogApiDockerfile = Join-Path $catalogApiContext "Dockerfile"
 if (-not (Build-Image -ServiceName "2. CatalogAPI" -ImageName "catalogapi" -ImageTag "latest" -DockerfilePath $catalogApiDockerfile -BuildContext $catalogApiContext)) {
     $errors += "CatalogAPI"
@@ -90,7 +90,7 @@ if (-not (Build-Image -ServiceName "2. CatalogAPI" -ImageName "catalogapi" -Imag
 Write-Host ""
 
 # 3. PaymentsAPI
-$paymentsApiContext = Join-Path $baseDir "Fase2-PaymentsAPI"
+$paymentsApiContext = Join-Path $baseDir "Fase4-FCG-PaymentsAPI"
 $paymentsApiDockerfile = Join-Path $paymentsApiContext "Dockerfile"
 if (-not (Build-Image -ServiceName "3. PaymentsAPI" -ImageName "payments-api" -ImageTag "latest" -DockerfilePath $paymentsApiDockerfile -BuildContext $paymentsApiContext)) {
     $errors += "PaymentsAPI"
@@ -98,7 +98,7 @@ if (-not (Build-Image -ServiceName "3. PaymentsAPI" -ImageName "payments-api" -I
 Write-Host ""
 
 # 4. NotificationsAPI
-$notificationsApiContext = Join-Path $baseDir "Fase2-NotificationsAPI\src"
+$notificationsApiContext = Join-Path $baseDir "Fase4-FCG-NotificationsAPI\src"
 $notificationsApiDockerfile = Join-Path $notificationsApiContext "Dockerfile"
 if (-not (Build-Image -ServiceName "4. NotificationsAPI" -ImageName "notifications-worker" -ImageTag "1" -DockerfilePath $notificationsApiDockerfile -BuildContext $notificationsApiContext)) {
     $errors += "NotificationsAPI"

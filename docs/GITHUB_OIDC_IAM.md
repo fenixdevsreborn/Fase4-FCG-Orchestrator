@@ -11,7 +11,7 @@ Use este guia para criar a role assumida por `aws-actions/configure-aws-credenti
 
 ## 2. Trust policy da role (exemplo)
 
-Restrinja `sub` ao repositório e, se quiser, à branch `refs/heads/main`:
+Restrinja `sub` ao repositório e, se quiser, à branch `refs/heads/master`:
 
 ```json
 {
@@ -28,7 +28,7 @@ Restrinja `sub` ao repositório e, se quiser, à branch `refs/heads/main`:
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:ORG/Fase2-Orchestrator:*"
+          "token.actions.githubusercontent.com:sub": "repo:ORG/Fase4-FCG-Orchestrator:*"
         }
       }
     }
@@ -36,7 +36,7 @@ Restrinja `sub` ao repositório e, se quiser, à branch `refs/heads/main`:
 }
 ```
 
-Para as APIs (`Fase2-UsersAPI`, etc.), crie **roles separadas** ou amplie o `StringLike` com vários `repo:ORG/...` (ou um padrão `repo:ORG/*` com cuidado).
+Para as APIs (`Fase4-FCG-UsersAPI`, `Fase4-FCG-CatalogAPI`, `Fase4-FCG-PaymentsAPI`, `Fase4-FCG-NotificationsAPI`), crie **roles separadas** ou amplie o `StringLike` com vários `repo:ORG/...` (ou um padrão `repo:ORG/*` com cuidado).
 
 ## 3. Permissões anexas (mínimo orientativo)
 

@@ -32,7 +32,7 @@ terraform plan -var-file=environments/prod.tfvars
 terraform apply -var-file=environments/prod.tfvars
 ```
 
-Em produção, este `apply` é executado pelo workflow `.github/workflows/terraform-aws.yml` ao push em `main`.
+Em produção, este `apply` é executado pelo workflow `.github/workflows/terraform-aws.yml` ao push em `master`.
 
 ## Observações
 

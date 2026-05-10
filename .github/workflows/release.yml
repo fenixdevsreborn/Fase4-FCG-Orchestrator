@@ -1,0 +1,49 @@
+name: release
+
+# Workflow de release semântico usando release-please.
+#
+# Como funciona:
+#   1. A cada push em master, este workflow analisa os commits seguindo o padrão
+#      Conventional Commits e abre (ou atualiza) um PR de release automaticamente.
+#   2. Quando o PR de release é mergeado, cria a tag vX.Y.Z e a GitHub Release.
+#
+# Tipos de commit e impacto na versão:
+#   feat:           → bumpa MINOR  (ex.: feat: add fuzzy search endpoint)
+#   fix:            → bumpa PATCH  (ex.: fix: catalog cache miss on warm start)
+#   feat!: ou       → bumpa MAJOR  (ex.: feat!: replace RabbitMQ with SQS)
+#   BREAKING CHANGE
+#   docs:/chore:    → sem bump de versão
+#
+# O workflow ignora commits de CI em values-prod.yaml (formato "ci: deploy *")
+# para evitar loop infinito de releases.
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "deploy/helm/fcg-platform/values-prod.yaml"
+      - "gitops/argocd/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@7987652d64b4581673a76e33ad5e98e3dd56832f # v4.1.3
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release-type: simple
+          package-name: fcg-platform
+          changelog-types: |
+            [
+              {"type":"feat","section":"Features","hidden":false},
+              {"type":"fix","section":"Bug Fixes","hidden":false},
+              {"type":"perf","section":"Performance Improvements","hidden":false},
+              {"type":"docs","section":"Documentation","hidden":true},
+              {"type":"chore","section":"Miscellaneous","hidden":true},
+              {"type":"ci","section":"CI/CD","hidden":true}
+            ]

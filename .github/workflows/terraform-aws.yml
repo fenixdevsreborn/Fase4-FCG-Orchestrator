@@ -1,10 +1,11 @@
 name: terraform-aws
 
 # Requer:
-#  - secret AWS_GITHUB_ROLE_ARN (output do stack bootstrap)
-#  - variable TF_STATE_BUCKET (output do stack bootstrap)
-#  - variable TF_LOCK_TABLE (output do stack bootstrap)
-#  - variable GITOPS_REPO_URL (https://github.com/<org>/Fase2-Orchestrator.git)
+#  - secret  AWS_GITHUB_ROLE_ARN      (output do stack bootstrap)
+#  - variable TF_STATE_BUCKET         (output do stack bootstrap)
+#  - variable TF_LOCK_TABLE           (output do stack bootstrap)
+#  - variable GITOPS_REPO_URL         (https://github.com/<org>/Fase4-FCG-Orchestrator.git)
+#  - branch alvo: master
 # Opcional:
 #  - environment "prod" com required reviewers para gate manual antes do apply
 
@@ -15,7 +16,7 @@ on:
       - "deploy/helm/fcg-platform/**"
       - ".github/workflows/terraform-aws.yml"
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "infra/terraform/aws/**"
       - "deploy/helm/fcg-platform/**"
@@ -30,19 +31,39 @@ env:
   AWS_REGION: us-east-1
   TF_WORKING_DIR: infra/terraform/aws
   TF_STATE_KEY: aws/prod/terraform.tfstate
+  HELM_CHART_DIR: deploy/helm/fcg-platform
 
 jobs:
-  plan:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+
+      - name: Helm lint
+        run: helm lint ${{ env.HELM_CHART_DIR }}
+
+      - name: Helm template (dry-run)
+        run: |
+          helm template fcg-platform ${{ env.HELM_CHART_DIR }} \
+            -f ${{ env.HELM_CHART_DIR }}/values.yaml \
+            --debug > /dev/null
+
+  plan:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
@@ -70,31 +91,31 @@ jobs:
         run: terraform plan -input=false -var-file=environments/prod.tfvars -out=tfplan
 
       - name: Upload plan artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: terraform-aws-plan
           path: ${{ env.TF_WORKING_DIR }}/tfplan
 
   apply:
     needs: plan
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: prod
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
@@ -122,7 +143,7 @@ jobs:
           GITOPS_REPO_URL: ${{ vars.GITOPS_REPO_URL }}
         run: bash scripts/render-values.sh tf-outputs.json
 
-      - name: Commit rendered values back to main
+      - name: Commit rendered values back to master
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

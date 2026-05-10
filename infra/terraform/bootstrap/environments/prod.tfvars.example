@@ -5,9 +5,9 @@ environment  = "prod"
 # Replace with your GitHub org/user and repository names
 github_org = "your-org"
 github_repos = [
-  "Fase2-Orchestrator",
-  "Fase2-UsersAPI",
-  "Fase2-CatalogAPI",
-  "Fase2-PaymentsAPI",
-  "Fase2-NotificationsAPI"
+  "Fase4-FCG-Orchestrator",
+  "Fase4-FCG-UsersAPI",
+  "Fase4-FCG-CatalogAPI",
+  "Fase4-FCG-PaymentsAPI",
+  "Fase4-FCG-NotificationsAPI"
 ]

@@ -7,7 +7,7 @@ spec:
   project: fcg-platform
   source:
     repoURL: https://github.com/your-org/your-repo.git
-    targetRevision: main
+    targetRevision: master
     path: deploy/helm/fcg-platform
     helm:
       valueFiles:

@@ -1,6 +1,6 @@
 # Placeholders (111111111111 e tag "initial") são substituídos automaticamente:
 #  - account ID + IRSA ARN: pelo workflow .github/workflows/terraform-aws.yml (scripts/render-values.sh)
-#  - tag de imagem: pelos workflows das APIs ao push em main (ECR + commit GitOps)
+#  - tag de imagem: pelos workflows das APIs ao push em master (ECR + commit GitOps)
 # Veja docs/DEPLOY-AUTOMATIC.md.
 
 global:

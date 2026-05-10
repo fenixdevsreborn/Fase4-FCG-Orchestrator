@@ -1,0 +1,270 @@
+name: bootstrap-aws
+
+# Executa o Terraform bootstrap (OIDC + IAM role + S3 + DynamoDB) via GitHub Actions.
+#
+# IMPORTANTE — leia antes de executar:
+#   1. Este workflow usa credenciais AWS ESTÁTICAS (BOOTSTRAP_AWS_ACCESS_KEY_ID /
+#      BOOTSTRAP_AWS_SECRET_ACCESS_KEY) que são TEMPORÁRIAS. Após o bootstrap ser
+#      bem-sucedido, EXCLUA essas credenciais da AWS (IAM Console) e do GitHub Secrets.
+#   2. O workflow só pode ser disparado MANUALMENTE (workflow_dispatch). Nunca configure
+#      trigger automático (push/schedule) para este workflow.
+#   3. Se você fornecer GH_ADMIN_PAT, o workflow configurará automaticamente TODOS os
+#      GitHub secrets/variables nos 5 repositórios FCG. Se não fornecer, os outputs
+#      serão exibidos nos logs para configuração manual.
+#
+# SECRETS TEMPORÁRIOS NECESSÁRIOS (configurar antes de rodar, excluir depois):
+#   BOOTSTRAP_AWS_ACCESS_KEY_ID     — Access Key ID do usuário fcg-bootstrap-admin
+#   BOOTSTRAP_AWS_SECRET_ACCESS_KEY — Secret Access Key do mesmo usuário
+#   GH_ADMIN_PAT (opcional)         — PAT GitHub com admin:repo para auto-configurar secrets
+#
+# INPUTS ao disparar o workflow:
+#   github_org        — nome da organização/usuário GitHub (ex: thefenixdevs)
+#   dockerhub_user    — username Docker Hub
+#   gitops_app_id     — ID numérico do GitHub App FCG GitOps (se já criado)
+#   doppler_token     — Service token do Doppler (se usando Doppler — ver docs/SECRETS-MANAGEMENT.md)
+#
+# Doc completa: docs/BOOTSTRAP.md, docs/SECRETS-MANAGEMENT.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_org:
+        description: "Organização ou usuário GitHub onde estão os 5 repos FCG"
+        required: true
+        type: string
+      dockerhub_user:
+        description: "Username Docker Hub (para configurar DOCKERHUB_USERNAME)"
+        required: false
+        type: string
+        default: ""
+      gitops_app_id:
+        description: "ID numérico do GitHub App FCG GitOps (ex: 123456). Deixe vazio se não criou ainda."
+        required: false
+        type: string
+        default: ""
+      auto_configure_secrets:
+        description: "Configurar GitHub secrets automaticamente após bootstrap? (requer GH_ADMIN_PAT)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  TF_WORKING_DIR: infra/terraform/bootstrap
+
+jobs:
+  bootstrap:
+    name: Bootstrap AWS (OIDC + IAM + S3 + DynamoDB)
+    runs-on: ubuntu-latest
+    environment: bootstrap
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate bootstrap secrets exist
+        run: |
+          if [[ -z "${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}" ]]; then
+            echo "ERRO: Secret BOOTSTRAP_AWS_ACCESS_KEY_ID não configurado."
+            echo "Configure este secret no GitHub antes de executar o workflow."
+            echo "Ver docs/BOOTSTRAP.md para instruções."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}" ]]; then
+            echo "ERRO: Secret BOOTSTRAP_AWS_SECRET_ACCESS_KEY não configurado."
+            exit 1
+          fi
+          echo "Secrets de bootstrap presentes. Continuando..."
+
+      - name: Configure AWS credentials (bootstrap static keys — TEMPORÁRIAS)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+
+      - name: Verify AWS identity
+        run: |
+          echo "Verificando identidade AWS..."
+          aws sts get-caller-identity
+          echo "Conta AWS verificada."
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_wrapper: false
+
+      - name: Prepare tfvars
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          cat > environments/prod.tfvars <<EOF
+          aws_region   = "us-east-1"
+          project_name = "fcg"
+          environment  = "prod"
+          github_org   = "${{ inputs.github_org }}"
+          github_repos = [
+            "Fase4-FCG-Orchestrator",
+            "Fase4-FCG-UsersAPI",
+            "Fase4-FCG-CatalogAPI",
+            "Fase4-FCG-PaymentsAPI",
+            "Fase4-FCG-NotificationsAPI"
+          ]
+          EOF
+          echo "prod.tfvars gerado para org: ${{ inputs.github_org }}"
+          cat environments/prod.tfvars
+
+      - name: Terraform init (backend local — NÃO migrar para S3)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Terraform plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -input=false -var-file=environments/prod.tfvars -out=tfplan
+
+      - name: Terraform apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Capture outputs
+        id: tf-outputs
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          ROLE_ARN=$(terraform output -raw github_actions_role_arn)
+          TF_BUCKET=$(terraform output -raw tfstate_bucket)
+          TF_LOCK=$(terraform output -raw tfstate_lock_table)
+          OIDC_ARN=$(terraform output -raw oidc_provider_arn)
+
+          echo "role_arn=${ROLE_ARN}"       >> "$GITHUB_OUTPUT"
+          echo "tf_bucket=${TF_BUCKET}"     >> "$GITHUB_OUTPUT"
+          echo "tf_lock=${TF_LOCK}"         >> "$GITHUB_OUTPUT"
+          echo "oidc_arn=${OIDC_ARN}"       >> "$GITHUB_OUTPUT"
+
+          echo ""
+          echo "============================================================"
+          echo "BOOTSTRAP CONCLUÍDO — ANOTE ESTES VALORES:"
+          echo "============================================================"
+          echo "AWS_GITHUB_ROLE_ARN = ${ROLE_ARN}"
+          echo "TF_STATE_BUCKET     = ${TF_BUCKET}"
+          echo "TF_LOCK_TABLE       = ${TF_LOCK}"
+          echo "OIDC_PROVIDER_ARN   = ${OIDC_ARN}"
+          echo "============================================================"
+          echo ""
+
+      - name: Auto-configure GitHub secrets (se GH_ADMIN_PAT fornecido)
+        if: inputs.auto_configure_secrets == true && secrets.GH_ADMIN_PAT != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_ADMIN_PAT }}
+          ORG: ${{ inputs.github_org }}
+          ROLE_ARN: ${{ steps.tf-outputs.outputs.role_arn }}
+          TF_BUCKET: ${{ steps.tf-outputs.outputs.tf_bucket }}
+          TF_LOCK: ${{ steps.tf-outputs.outputs.tf_lock }}
+          DH_USER: ${{ inputs.dockerhub_user }}
+          APP_ID: ${{ inputs.gitops_app_id }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          GITOPS_APP_PRIVATE_KEY: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+        run: |
+          echo "Configurando GitHub secrets/variables nos repositórios FCG..."
+
+          # --- Orchestrator ---
+          ORCHESTRATOR="${ORG}/Fase4-FCG-Orchestrator"
+          gh secret set AWS_GITHUB_ROLE_ARN --body "${ROLE_ARN}" --repo "${ORCHESTRATOR}"
+          gh variable set TF_STATE_BUCKET   --body "${TF_BUCKET}" --repo "${ORCHESTRATOR}"
+          gh variable set TF_LOCK_TABLE     --body "${TF_LOCK}"   --repo "${ORCHESTRATOR}"
+          gh variable set GITOPS_REPO_URL   --body "https://github.com/${ORG}/Fase4-FCG-Orchestrator.git" --repo "${ORCHESTRATOR}"
+          echo "Orchestrator: AWS_GITHUB_ROLE_ARN, TF_STATE_BUCKET, TF_LOCK_TABLE, GITOPS_REPO_URL configurados."
+
+          if [[ -n "${DH_USER}" ]]; then
+            gh secret set DOCKERHUB_USERNAME --body "${DH_USER}" --repo "${ORCHESTRATOR}"
+            echo "Orchestrator: DOCKERHUB_USERNAME configurado."
+          fi
+          if [[ -n "${DOCKERHUB_TOKEN}" ]]; then
+            gh secret set DOCKERHUB_TOKEN --body "${DOCKERHUB_TOKEN}" --repo "${ORCHESTRATOR}"
+            echo "Orchestrator: DOCKERHUB_TOKEN configurado."
+          fi
+
+          # --- APIs ---
+          APIS=("Fase4-FCG-UsersAPI" "Fase4-FCG-CatalogAPI" "Fase4-FCG-PaymentsAPI" "Fase4-FCG-NotificationsAPI")
+          for r in "${APIS[@]}"; do
+            REPO="${ORG}/${r}"
+            gh secret set AWS_GITHUB_ROLE_ARN --body "${ROLE_ARN}" --repo "${REPO}"
+            gh variable set GITOPS_REPOSITORY --body "${ORG}/Fase4-FCG-Orchestrator" --repo "${REPO}"
+
+            if [[ -n "${DH_USER}" ]]; then
+              gh secret set DOCKERHUB_USERNAME --body "${DH_USER}" --repo "${REPO}"
+            fi
+            if [[ -n "${DOCKERHUB_TOKEN}" ]]; then
+              gh secret set DOCKERHUB_TOKEN --body "${DOCKERHUB_TOKEN}" --repo "${REPO}"
+            fi
+            if [[ -n "${APP_ID}" ]]; then
+              gh variable set GITOPS_APP_ID --body "${APP_ID}" --repo "${REPO}"
+            fi
+            if [[ -n "${GITOPS_APP_PRIVATE_KEY}" ]]; then
+              gh secret set GITOPS_APP_PRIVATE_KEY --body "${GITOPS_APP_PRIVATE_KEY}" --repo "${REPO}"
+            fi
+            echo "${r}: secrets configurados."
+          done
+
+          echo ""
+          echo "GitHub secrets/variables configurados com sucesso!"
+          echo "Próximo passo: excluir BOOTSTRAP_AWS_ACCESS_KEY_ID e BOOTSTRAP_AWS_SECRET_ACCESS_KEY."
+
+      - name: Instrucoes para configuracao manual (se GH_ADMIN_PAT ausente)
+        if: inputs.auto_configure_secrets == false || secrets.GH_ADMIN_PAT == ''
+        env:
+          ROLE_ARN: ${{ steps.tf-outputs.outputs.role_arn }}
+          TF_BUCKET: ${{ steps.tf-outputs.outputs.tf_bucket }}
+          TF_LOCK: ${{ steps.tf-outputs.outputs.tf_lock }}
+          ORG: ${{ inputs.github_org }}
+        run: |
+          echo ""
+          echo "============================================================"
+          echo "PRÓXIMOS PASSOS — Configure os GitHub secrets manualmente:"
+          echo "============================================================"
+          echo ""
+          echo "Instale gh CLI e execute:"
+          echo ""
+          echo "  \$ORG='${ORG}'"
+          echo "  \$ROLE='${ROLE_ARN}'"
+          echo "  \$BUCKET='${TF_BUCKET}'"
+          echo "  \$LOCK='${TF_LOCK}'"
+          echo ""
+          echo "  gh secret set AWS_GITHUB_ROLE_ARN --body \"\$ROLE\" --repo \"\$ORG/Fase4-FCG-Orchestrator\""
+          echo "  gh variable set TF_STATE_BUCKET --body \"\$BUCKET\" --repo \"\$ORG/Fase4-FCG-Orchestrator\""
+          echo "  gh variable set TF_LOCK_TABLE --body \"\$LOCK\" --repo \"\$ORG/Fase4-FCG-Orchestrator\""
+          echo ""
+          echo "  # Para cada API:"
+          echo "  foreach (\$r in @('Fase4-FCG-UsersAPI','Fase4-FCG-CatalogAPI','Fase4-FCG-PaymentsAPI','Fase4-FCG-NotificationsAPI')) {"
+          echo "    gh secret set AWS_GITHUB_ROLE_ARN --body \"\$ROLE\" --repo \"\$ORG/\$r\""
+          echo "    gh variable set GITOPS_REPOSITORY --body \"\$ORG/Fase4-FCG-Orchestrator\" --repo \"\$ORG/\$r\""
+          echo "  }"
+          echo ""
+          echo "  # Adicione manualmente: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN,"
+          echo "  # GITOPS_APP_ID, GITOPS_APP_PRIVATE_KEY em cada API"
+          echo ""
+          echo "  # Depois: exclua BOOTSTRAP_AWS_ACCESS_KEY_ID e BOOTSTRAP_AWS_SECRET_ACCESS_KEY!"
+          echo "============================================================"
+
+      - name: AVISO — Exclua as credenciais bootstrap
+        if: always()
+        run: |
+          echo ""
+          echo "========================================================="
+          echo "SEGURANÇA — AÇÃO OBRIGATÓRIA APÓS ESTE WORKFLOW:"
+          echo "========================================================="
+          echo "1. Exclua o secret BOOTSTRAP_AWS_ACCESS_KEY_ID do GitHub."
+          echo "2. Exclua o secret BOOTSTRAP_AWS_SECRET_ACCESS_KEY do GitHub."
+          echo "3. Desative a Access Key no IAM Console da AWS:"
+          echo "   IAM → Users → fcg-bootstrap-admin → Security credentials"
+          echo "   → Deactivate access key (ou Delete)."
+          echo ""
+          echo "Após esta limpeza, NENHUMA credencial estática AWS"
+          echo "permanece no GitHub. Tudo usa OIDC."
+          echo "========================================================="

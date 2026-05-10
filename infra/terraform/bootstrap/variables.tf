@@ -25,11 +25,11 @@ variable "github_repos" {
   type        = list(string)
   description = "Repository names allowed to assume the GitHub Actions role."
   default = [
-    "Fase2-Orchestrator",
-    "Fase2-UsersAPI",
-    "Fase2-CatalogAPI",
-    "Fase2-PaymentsAPI",
-    "Fase2-NotificationsAPI"
+    "Fase4-FCG-Orchestrator",
+    "Fase4-FCG-UsersAPI",
+    "Fase4-FCG-CatalogAPI",
+    "Fase4-FCG-PaymentsAPI",
+    "Fase4-FCG-NotificationsAPI"
   ]
 }
 

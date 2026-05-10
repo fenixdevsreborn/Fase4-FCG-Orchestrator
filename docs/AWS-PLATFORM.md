@@ -23,13 +23,13 @@ A entrega cloud-native da FCG (Fase 4) vive **neste** repositório (`Fase2-Orche
 ## Fluxo resumido
 
 ```
-[bootstrap local]  →  [push main Orchestrator]  →  [terraform apply via CI]
+[bootstrap local]  →  [push master Orchestrator]  →  [terraform apply via CI]
                                                           ↓
                                                   [render values-prod.yaml]
                                                           ↓
-                                                  [commit em main]
+                                                  [commit em master]
                                                           ↓
-[push main em qualquer API]  →  [build+push ECR + atualiza values-prod.yaml]
+[push master em qualquer API]  →  [build+push ECR + atualiza values-prod.yaml]
                                                           ↓
                                               [Argo CD detecta mudança]
                                                           ↓

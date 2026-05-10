@@ -127,6 +127,8 @@ module "eks_blueprints_addons" {
   enable_external_secrets             = true
   enable_metrics_server               = true
   enable_argocd                       = true
+  enable_aws_for_fluentbit            = true
+  enable_aws_cloudwatch_metrics       = true
 
   argocd = {
     namespace = "argocd"
@@ -134,6 +136,20 @@ module "eks_blueprints_addons" {
 
   external_secrets = {
     namespace = "external-secrets"
+  }
+
+  aws_for_fluentbit = {
+    enable_containerinsights = true
+    set = [
+      {
+        name  = "cloudWatch.region"
+        value = var.aws_region
+      },
+      {
+        name  = "cloudWatch.logGroupName"
+        value = "/aws/containerinsights/fcg-prod/application"
+      }
+    ]
   }
 
   tags = local.common_tags
