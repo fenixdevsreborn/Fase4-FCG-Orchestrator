@@ -191,6 +191,93 @@ jobs:
           echo "✅ ECR esvaziado."
 
       # ----------------------------------------------------------------
+      # PASSO 2.5 — Limpar recursos AWS criados pelo Kubernetes
+      # (ALB, Target Groups, ENIs, SGs) que o Terraform não gerencia.
+      # Sem esta limpeza, a subnet/VPC não consegue ser deletada.
+      # ----------------------------------------------------------------
+      - name: Passo 2.5/4 — Limpar ALBs, ENIs e SGs residuais do Kubernetes
+        run: |
+          echo "Localizando VPC do cluster fcg-prod..."
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=fcg-prod" \
+            --query 'Vpcs[0].VpcId' \
+            --output text 2>/dev/null || echo "")
+
+          if [[ -z "${VPC_ID}" || "${VPC_ID}" == "None" ]]; then
+            echo "VPC não encontrada. Pulando limpeza de recursos K8s residuais."
+            exit 0
+          fi
+          echo "VPC ID: ${VPC_ID}"
+
+          # --- ALBs criados pelo AWS Load Balancer Controller ---
+          echo ""
+          echo "--- Deletando Load Balancers no VPC ---"
+          LB_ARNS=$(aws elbv2 describe-load-balancers \
+            --query "LoadBalancers[?VpcId=='${VPC_ID}'].LoadBalancerArn" \
+            --output text 2>/dev/null || echo "")
+
+          if [[ -n "${LB_ARNS}" && "${LB_ARNS}" != "None" ]]; then
+            for arn in ${LB_ARNS}; do
+              echo "  Deletando LB: ${arn}"
+              aws elbv2 delete-load-balancer --load-balancer-arn "${arn}"
+            done
+            echo "  Aguardando 90s para LBs serem removidos da AWS..."
+            sleep 90
+          else
+            echo "  Nenhum Load Balancer encontrado."
+          fi
+
+          # --- Target Groups ---
+          echo ""
+          echo "--- Deletando Target Groups no VPC ---"
+          TG_ARNS=$(aws elbv2 describe-target-groups \
+            --query "TargetGroups[?VpcId=='${VPC_ID}'].TargetGroupArn" \
+            --output text 2>/dev/null || echo "")
+
+          for tg in ${TG_ARNS}; do
+            [[ -z "${tg}" || "${tg}" == "None" ]] && continue
+            echo "  Deletando Target Group: ${tg}"
+            aws elbv2 delete-target-group --target-group-arn "${tg}" 2>/dev/null || true
+          done
+
+          # --- ENIs residuais (status=available significa não estão em uso) ---
+          echo ""
+          echo "--- Deletando ENIs residuais (status=available) ---"
+          ENIS=$(aws ec2 describe-network-interfaces \
+            --filters "Name=vpc-id,Values=${VPC_ID}" \
+                      "Name=status,Values=available" \
+            --query 'NetworkInterfaces[].NetworkInterfaceId' \
+            --output text 2>/dev/null || echo "")
+
+          for eni in ${ENIS}; do
+            [[ -z "${eni}" || "${eni}" == "None" ]] && continue
+            echo "  Deletando ENI: ${eni}"
+            aws ec2 delete-network-interface --network-interface-id "${eni}" 2>/dev/null \
+              && echo "  ✓ ${eni}" \
+              || echo "  ⚠ ${eni}: em uso, ignorando"
+          done
+
+          # --- Security Groups criados pelo K8s (têm tag kubernetes.io/cluster) ---
+          echo ""
+          echo "--- Deletando Security Groups do Kubernetes ---"
+          K8S_SGS=$(aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=${VPC_ID}" \
+                      "Name=tag-key,Values=kubernetes.io/cluster/fcg-prod" \
+            --query 'SecurityGroups[].GroupId' \
+            --output text 2>/dev/null || echo "")
+
+          for sg in ${K8S_SGS}; do
+            [[ -z "${sg}" || "${sg}" == "None" ]] && continue
+            echo "  Deletando SG: ${sg}"
+            aws ec2 delete-security-group --group-id "${sg}" 2>/dev/null \
+              && echo "  ✓ ${sg}" \
+              || echo "  ⚠ ${sg}: ainda tem dependências, o Terraform vai tentar novamente"
+          done
+
+          echo ""
+          echo "✅ Limpeza de recursos K8s residuais concluída."
+
+      # ----------------------------------------------------------------
       # PASSO 3 — Terraform destroy da plataforma
       # ----------------------------------------------------------------
       - name: Passo 3/4 — Terraform init (plataforma)
