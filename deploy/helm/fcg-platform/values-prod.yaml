@@ -17,7 +17,7 @@ global:
 services:
   gateway:
     image:
-      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/gateway-api
+      repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/gateway-api
       tag: "initial"
     ingress:
       enabled: true
@@ -35,25 +35,25 @@ services:
 
   users-api:
     image:
-      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/users-api
+      repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/users-api
       tag: "initial"
 
   catalog-api:
     image:
-      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/catalog-api
+      repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/catalog-api
       tag: "initial"
     serviceAccount:
       create: true
       name: catalog-api
       annotations:
-        eks.amazonaws.com/role-arn: arn:aws:iam::111111111111:role/fcg-prod-catalog-irsa
+        eks.amazonaws.com/role-arn: arn:aws:iam::682839842435:role/fcg-prod-catalog-irsa
 
   payments-api:
     image:
-      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/payments-api
+      repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/payments-api
       tag: "initial"
 
   notifications-api:
     image:
-      repository: 111111111111.dkr.ecr.us-east-1.amazonaws.com/notifications-api
+      repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/notifications-api
       tag: "initial"

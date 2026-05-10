@@ -6,7 +6,7 @@ metadata:
 spec:
   project: fcg-platform
   source:
-    repoURL: https://github.com/your-org/your-repo.git
+    repoURL: https://github.com/fenixdevsreborn/Fase4-FCG-Orchestrator.git
     targetRevision: master
     path: deploy/helm/fcg-platform
     helm:
