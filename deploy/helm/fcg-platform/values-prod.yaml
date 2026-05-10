@@ -36,7 +36,7 @@ services:
   users-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/users-api
-      tag: "initial"
+      tag: \"1eb766a2a057\"
 
   catalog-api:
     image:
