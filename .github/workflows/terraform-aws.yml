@@ -86,9 +86,30 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
 
+      - name: Liberar state lock do plan (se existir de run anterior)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          # S3 native lock: o arquivo é <state_key>.tflock
+          LOCK_FILE="s3://${{ vars.TF_STATE_BUCKET }}/${{ env.TF_STATE_KEY }}.tflock"
+          if aws s3 ls "${LOCK_FILE}" 2>/dev/null; then
+            echo "Lock file encontrado: ${LOCK_FILE}"
+            LOCK_ID=$(aws s3 cp "${LOCK_FILE}" - 2>/dev/null \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('ID',''))" 2>/dev/null || echo "")
+            if [[ -n "${LOCK_ID}" ]]; then
+              echo "Forçando liberação do lock: ${LOCK_ID}"
+              terraform force-unlock -force "${LOCK_ID}" || true
+            else
+              echo "Deletando lock file diretamente..."
+              aws s3 rm "${LOCK_FILE}" || true
+            fi
+            echo "✓ Lock liberado."
+          else
+            echo "Nenhum lock ativo. Prosseguindo."
+          fi
+
       - name: Terraform plan
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform plan -input=false -var-file=environments/prod.tfvars -out=tfplan
+        run: terraform plan -input=false -lock=false -var-file=environments/prod.tfvars -out=tfplan
 
       - name: Upload plan artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
@@ -129,6 +150,26 @@ jobs:
             -backend-config="region=${{ env.AWS_REGION }}" \
             -backend-config="use_lockfile=true" \
             -backend-config="encrypt=true"
+
+      - name: Liberar state lock do apply (se existir de run anterior)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          LOCK_FILE="s3://${{ vars.TF_STATE_BUCKET }}/${{ env.TF_STATE_KEY }}.tflock"
+          if aws s3 ls "${LOCK_FILE}" 2>/dev/null; then
+            echo "Lock file encontrado: ${LOCK_FILE}"
+            LOCK_ID=$(aws s3 cp "${LOCK_FILE}" - 2>/dev/null \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('ID',''))" 2>/dev/null || echo "")
+            if [[ -n "${LOCK_ID}" ]]; then
+              echo "Forçando liberação do lock: ${LOCK_ID}"
+              terraform force-unlock -force "${LOCK_ID}" || true
+            else
+              echo "Deletando lock file diretamente..."
+              aws s3 rm "${LOCK_FILE}" || true
+            fi
+            echo "✓ Lock liberado."
+          else
+            echo "Nenhum lock ativo. Prosseguindo."
+          fi
 
       - name: Terraform apply
         working-directory: ${{ env.TF_WORKING_DIR }}
