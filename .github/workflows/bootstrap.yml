@@ -211,49 +211,81 @@ jobs:
           GITOPS_APP_PRIVATE_KEY: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
         run: |
           echo "Configurando GitHub secrets/variables nos repositórios FCG..."
+          echo ""
 
-          # --- Orchestrator ---
+          # ---------------------------------------------------------------
+          # ORG-LEVEL: atualiza o secret AWS_GITHUB_ROLE_ARN na organização
+          # (requer scope admin:org no classic PAT)
+          # ---------------------------------------------------------------
+          echo "=== Org secret: AWS_GITHUB_ROLE_ARN ==="
+          gh secret set AWS_GITHUB_ROLE_ARN \
+            --body "${ROLE_ARN}" \
+            --org "${ORG}" \
+            --visibility all \
+            && echo "  ✓ Org secret AWS_GITHUB_ROLE_ARN atualizado." \
+            || echo "  ⚠ Não foi possível atualizar org secret (falta admin:org no PAT). Será configurado por repo."
+
+          # ---------------------------------------------------------------
+          # Orchestrator (repo-level)
+          # ---------------------------------------------------------------
+          echo ""
+          echo "=== Orchestrator: repo secrets/variables ==="
           ORCHESTRATOR="${ORG}/Fase4-FCG-Orchestrator"
-          gh secret set AWS_GITHUB_ROLE_ARN --body "${ROLE_ARN}" --repo "${ORCHESTRATOR}"
-          gh variable set TF_STATE_BUCKET   --body "${TF_BUCKET}" --repo "${ORCHESTRATOR}"
-          gh variable set TF_LOCK_TABLE     --body "${TF_LOCK}"   --repo "${ORCHESTRATOR}"
-          gh variable set GITOPS_REPO_URL   --body "https://github.com/${ORG}/Fase4-FCG-Orchestrator.git" --repo "${ORCHESTRATOR}"
-          echo "Orchestrator: AWS_GITHUB_ROLE_ARN, TF_STATE_BUCKET, TF_LOCK_TABLE, GITOPS_REPO_URL configurados."
+          gh secret set AWS_GITHUB_ROLE_ARN --body "${ROLE_ARN}"    --repo "${ORCHESTRATOR}"
+          gh variable set TF_STATE_BUCKET   --body "${TF_BUCKET}"   --repo "${ORCHESTRATOR}"
+          gh variable set TF_LOCK_TABLE     --body "${TF_LOCK}"      --repo "${ORCHESTRATOR}"
+          gh variable set GITOPS_REPO_URL   \
+            --body "https://github.com/${ORG}/Fase4-FCG-Orchestrator.git" \
+            --repo "${ORCHESTRATOR}"
+          echo "  ✓ AWS_GITHUB_ROLE_ARN, TF_STATE_BUCKET, TF_LOCK_TABLE, GITOPS_REPO_URL"
 
-          if [[ -n "${DH_USER}" ]]; then
-            gh secret set DOCKERHUB_USERNAME --body "${DH_USER}" --repo "${ORCHESTRATOR}"
-            echo "Orchestrator: DOCKERHUB_USERNAME configurado."
-          fi
-          if [[ -n "${DOCKERHUB_TOKEN}" ]]; then
-            gh secret set DOCKERHUB_TOKEN --body "${DOCKERHUB_TOKEN}" --repo "${ORCHESTRATOR}"
-            echo "Orchestrator: DOCKERHUB_TOKEN configurado."
-          fi
+          [[ -n "${DH_USER}" ]] && \
+            gh secret set DOCKERHUB_USERNAME --body "${DH_USER}"    --repo "${ORCHESTRATOR}" && \
+            echo "  ✓ DOCKERHUB_USERNAME"
+          [[ -n "${DOCKERHUB_TOKEN}" ]] && \
+            gh secret set DOCKERHUB_TOKEN    --body "${DOCKERHUB_TOKEN}" --repo "${ORCHESTRATOR}" && \
+            echo "  ✓ DOCKERHUB_TOKEN"
 
-          # --- APIs ---
+          # ---------------------------------------------------------------
+          # APIs (repo-level)
+          # ---------------------------------------------------------------
           APIS=("Fase4-FCG-UsersAPI" "Fase4-FCG-CatalogAPI" "Fase4-FCG-PaymentsAPI" "Fase4-FCG-NotificationsAPI")
           for r in "${APIS[@]}"; do
+            echo ""
+            echo "=== ${r} ==="
             REPO="${ORG}/${r}"
-            gh secret set AWS_GITHUB_ROLE_ARN --body "${ROLE_ARN}" --repo "${REPO}"
-            gh variable set GITOPS_REPOSITORY --body "${ORG}/Fase4-FCG-Orchestrator" --repo "${REPO}"
+            gh secret set AWS_GITHUB_ROLE_ARN --body "${ROLE_ARN}"  --repo "${REPO}"
+            gh variable set GITOPS_REPOSITORY \
+              --body "${ORG}/Fase4-FCG-Orchestrator" --repo "${REPO}"
+            echo "  ✓ AWS_GITHUB_ROLE_ARN, GITOPS_REPOSITORY"
 
-            if [[ -n "${DH_USER}" ]]; then
-              gh secret set DOCKERHUB_USERNAME --body "${DH_USER}" --repo "${REPO}"
-            fi
-            if [[ -n "${DOCKERHUB_TOKEN}" ]]; then
-              gh secret set DOCKERHUB_TOKEN --body "${DOCKERHUB_TOKEN}" --repo "${REPO}"
-            fi
-            if [[ -n "${APP_ID}" ]]; then
-              gh variable set GITOPS_APP_ID --body "${APP_ID}" --repo "${REPO}"
-            fi
+            [[ -n "${DH_USER}" ]] && \
+              gh secret set DOCKERHUB_USERNAME --body "${DH_USER}"  --repo "${REPO}" && \
+              echo "  ✓ DOCKERHUB_USERNAME"
+            [[ -n "${DOCKERHUB_TOKEN}" ]] && \
+              gh secret set DOCKERHUB_TOKEN --body "${DOCKERHUB_TOKEN}" --repo "${REPO}" && \
+              echo "  ✓ DOCKERHUB_TOKEN"
+            [[ -n "${APP_ID}" ]] && \
+              gh variable set GITOPS_APP_ID --body "${APP_ID}" --repo "${REPO}" && \
+              echo "  ✓ GITOPS_APP_ID=${APP_ID}"
             if [[ -n "${GITOPS_APP_PRIVATE_KEY}" ]]; then
               gh secret set GITOPS_APP_PRIVATE_KEY --body "${GITOPS_APP_PRIVATE_KEY}" --repo "${REPO}"
+              echo "  ✓ GITOPS_APP_PRIVATE_KEY"
+            else
+              echo "  ⚠ GITOPS_APP_PRIVATE_KEY não configurado (adicione o secret ao Orchestrator antes de rodar)"
             fi
-            echo "${r}: secrets configurados."
           done
 
           echo ""
-          echo "GitHub secrets/variables configurados com sucesso!"
-          echo "Próximo passo: excluir BOOTSTRAP_AWS_ACCESS_KEY_ID e BOOTSTRAP_AWS_SECRET_ACCESS_KEY."
+          echo "================================================================"
+          echo "✅ Configuração automática concluída!"
+          echo "================================================================"
+          echo "Próximos passos:"
+          echo "  1. Excluir BOOTSTRAP_AWS_ACCESS_KEY_ID do GitHub Secrets"
+          echo "  2. Excluir BOOTSTRAP_AWS_SECRET_ACCESS_KEY do GitHub Secrets"
+          echo "  3. Desativar a Access Key no IAM Console da AWS"
+          echo "  4. Fazer push em master do Orchestrator para disparar o deploy"
+          echo "================================================================"
 
       - name: Instrucoes para configuracao manual (se GH_ADMIN_PAT ausente)
         if: inputs.auto_configure_secrets == false || env.GH_ADMIN_PAT_SET != 'true'
