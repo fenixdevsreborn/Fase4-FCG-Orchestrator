@@ -130,6 +130,39 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
 
+      - name: Importar recursos existentes (idempotente)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          # Erros de import são ESPERADOS quando o recurso não existe — por isso set +e.
+          # O exit 0 final garante que este step nunca trava o workflow.
+          set +e
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "Account ID: ${ACCOUNT_ID}"
+
+          echo "--- Importando OIDC Provider (pode já existir de outro projeto) ---"
+          terraform import aws_iam_openid_connect_provider.github \
+            "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+
+          echo "--- Importando S3 bucket (se existir de run anterior) ---"
+          BUCKET="fcg-prod-tfstate-${ACCOUNT_ID}"
+          terraform import aws_s3_bucket.tfstate                                    "${BUCKET}"
+          terraform import aws_s3_bucket_versioning.tfstate                         "${BUCKET}"
+          terraform import aws_s3_bucket_server_side_encryption_configuration.tfstate "${BUCKET}"
+          terraform import aws_s3_bucket_public_access_block.tfstate                "${BUCKET}"
+
+          echo "--- Importando DynamoDB (se existir) ---"
+          terraform import aws_dynamodb_table.tfstate_lock "fcg-prod-tfstate-lock"
+
+          echo "--- Importando IAM Policy (se existir) ---"
+          terraform import aws_iam_policy.platform \
+            "arn:aws:iam::${ACCOUNT_ID}:policy/fcg-prod-github-actions"
+
+          echo "--- Importando IAM Role (se existir) ---"
+          terraform import aws_iam_role.github_actions "fcg-prod-github-actions"
+
+          echo "--- Import concluído. Erros acima são normais se os recursos não existem ainda. ---"
+          exit 0
+
       - name: Terraform plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -input=false -var-file=environments/prod.tfvars -out=tfplan
