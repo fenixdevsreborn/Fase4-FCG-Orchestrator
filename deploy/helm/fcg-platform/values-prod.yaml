@@ -51,7 +51,7 @@ services:
   payments-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/payments-api
-      tag: "initial"
+      tag: \"27806db4c798\"
 
   notifications-api:
     image:
