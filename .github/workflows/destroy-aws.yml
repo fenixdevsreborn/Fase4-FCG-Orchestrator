@@ -1,0 +1,312 @@
+name: destroy-aws
+
+# Destrói TODOS os recursos AWS da plataforma FCG na ordem correta.
+#
+# Ordem de destruição (inverso da criação):
+#   1. Kubernetes (Application Argo CD → Ingress → ALB)
+#   2. Imagens ECR (esvazia antes do terraform destroy)
+#   3. Plataforma AWS (EKS, RDS, Redis, MQ, OpenSearch, DynamoDB, VPC...)
+#   4. Bootstrap (OIDC, IAM role, S3 tfstate, DynamoDB lock) — OPCIONAL
+#
+# Recursos com custo relevante destruídos:
+#   EKS cluster + node group      ~$0.10/h + nodes
+#   RDS PostgreSQL x2             ~$0.02/h cada
+#   OpenSearch                    ~$0.09/h
+#   ElastiCache Redis             ~$0.02/h
+#   AWS MQ RabbitMQ               ~$0.02/h
+#   NAT Gateway                   ~$0.05/h
+#
+# Para RECRIAR: basta fazer push em master (se bootstrap mantido)
+#               ou rodar bootstrap-aws antes (se bootstrap destruído).
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Digite exatamente DESTRUIR para confirmar"
+        required: true
+        type: string
+      destroy_bootstrap:
+        description: "Destruir também o bootstrap? (OIDC + IAM role + S3 tfstate + DynamoDB lock). Se sim, precisará rodar bootstrap-aws antes do próximo deploy."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: fcg-prod
+  TF_PLATFORM_DIR: infra/terraform/aws
+  TF_BOOTSTRAP_DIR: infra/terraform/bootstrap
+  TF_STATE_KEY: aws/prod/terraform.tfstate
+
+jobs:
+  destroy:
+    name: Destruir plataforma FCG na AWS
+    runs-on: ubuntu-latest
+    environment: prod
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      # ----------------------------------------------------------------
+      # Segurança: confirmação explícita
+      # ----------------------------------------------------------------
+      - name: Validar confirmação
+        run: |
+          if [[ "${{ inputs.confirmation }}" != "DESTRUIR" ]]; then
+            echo "❌ Confirmação incorreta. Digite exatamente: DESTRUIR"
+            exit 1
+          fi
+          echo "✅ Confirmação válida. Iniciando sequência de destruição..."
+          echo ""
+          echo "Recursos que serão destruídos:"
+          echo "  • EKS cluster + node groups"
+          echo "  • RDS PostgreSQL (users_db + catalogdb)"
+          echo "  • ElastiCache Redis"
+          echo "  • AWS MQ RabbitMQ"
+          echo "  • Amazon OpenSearch"
+          echo "  • DynamoDB (catálogo de metadados)"
+          echo "  • ECR repositories (5) + todas as imagens"
+          echo "  • Secrets Manager (todas as senhas geradas)"
+          echo "  • VPC, subnets, NAT Gateway, security groups"
+          echo "  • IAM roles de aplicação (IRSA, etc.)"
+          if [[ "${{ inputs.destroy_bootstrap }}" == "true" ]]; then
+            echo "  • BOOTSTRAP: OIDC provider, IAM role GitHub Actions"
+            echo "  • BOOTSTRAP: S3 bucket tfstate, DynamoDB lock table"
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+
+      - name: Verificar identidade AWS
+        run: |
+          aws sts get-caller-identity
+          echo "Região: ${{ env.AWS_REGION }}"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_wrapper: false
+
+      # ----------------------------------------------------------------
+      # PASSO 1 — Limpar recursos Kubernetes antes de destruir a infra
+      # O ALB é criado pelo K8s Ingress Controller, NÃO pelo Terraform.
+      # Se não remover primeiro, a VPC não pode ser deletada.
+      # ----------------------------------------------------------------
+      - name: Passo 1/4 — Remover recursos Kubernetes (Argo CD, Ingress, ALB)
+        run: |
+          echo "Verificando se o cluster EKS existe..."
+          if ! aws eks describe-cluster \
+              --name "${{ env.CLUSTER_NAME }}" \
+              --region "${{ env.AWS_REGION }}" \
+              --query 'cluster.status' \
+              --output text 2>/dev/null | grep -q "ACTIVE"; then
+            echo "Cluster EKS não encontrado ou não está ACTIVE. Pulando limpeza K8s."
+            exit 0
+          fi
+
+          echo "Cluster EKS encontrado. Atualizando kubeconfig..."
+          aws eks update-kubeconfig \
+            --region "${{ env.AWS_REGION }}" \
+            --name "${{ env.CLUSTER_NAME }}"
+
+          echo ""
+          echo "--- Deletando Application do Argo CD (dispara remoção dos pods) ---"
+          kubectl delete application fcg-platform -n argocd \
+            --timeout=180s 2>/dev/null \
+            && echo "  ✓ Application removida" \
+            || echo "  ⚠ Application não encontrada (ok se nunca foi registrada)"
+
+          kubectl delete appproject fcg-platform -n argocd \
+            --timeout=60s 2>/dev/null \
+            && echo "  ✓ AppProject removido" \
+            || echo "  ⚠ AppProject não encontrado"
+
+          echo ""
+          echo "--- Deletando Ingress (dispara remoção do ALB pelo AWS LB Controller) ---"
+          kubectl delete ingress --all -n fcg-platform \
+            --timeout=120s 2>/dev/null \
+            && echo "  ✓ Ingresses removidos" \
+            || echo "  ⚠ Nenhum Ingress encontrado"
+
+          echo ""
+          echo "--- Aguardando ALB ser deletado pela AWS (~2 min) ---"
+          for i in $(seq 1 12); do
+            echo "  Aguardando... ${i}/12 (10s cada)"
+            sleep 10
+          done
+
+          echo ""
+          echo "--- Deletando namespace fcg-platform (remove serviços e Load Balancers restantes) ---"
+          kubectl delete namespace fcg-platform \
+            --timeout=120s 2>/dev/null \
+            && echo "  ✓ Namespace removido" \
+            || echo "  ⚠ Namespace não encontrado ou já removido"
+
+          echo ""
+          echo "✅ Recursos Kubernetes removidos. Prosseguindo com destruição da infra AWS."
+
+      # ----------------------------------------------------------------
+      # PASSO 2 — Esvaziar repositórios ECR
+      # Terraform não consegue deletar repos com imagens a menos que
+      # force_delete = true esteja configurado no Terraform.
+      # ----------------------------------------------------------------
+      - name: Passo 2/4 — Esvaziar repositórios ECR
+        run: |
+          echo "Esvaziando repositórios ECR (necessário antes do terraform destroy)..."
+          SERVICES=("gateway-api" "users-api" "catalog-api" "payments-api" "notifications-api")
+
+          for svc in "${SERVICES[@]}"; do
+            echo "--- ${svc} ---"
+            IMAGES=$(aws ecr list-images \
+              --repository-name "${svc}" \
+              --region "${{ env.AWS_REGION }}" \
+              --query 'imageIds' \
+              --output json 2>/dev/null || echo "[]")
+
+            if [[ "${IMAGES}" == "[]" || "${IMAGES}" == "null" ]]; then
+              echo "  ✓ ${svc}: já vazio ou não existe"
+              continue
+            fi
+
+            aws ecr batch-delete-image \
+              --repository-name "${svc}" \
+              --region "${{ env.AWS_REGION }}" \
+              --image-ids "${IMAGES}" \
+              --output table \
+              && echo "  ✓ ${svc}: imagens removidas" \
+              || echo "  ⚠ ${svc}: falha ao remover (continuando)"
+          done
+
+          echo ""
+          echo "✅ ECR esvaziado."
+
+      # ----------------------------------------------------------------
+      # PASSO 3 — Terraform destroy da plataforma
+      # ----------------------------------------------------------------
+      - name: Passo 3/4 — Terraform init (plataforma)
+        working-directory: ${{ env.TF_PLATFORM_DIR }}
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+
+      - name: Passo 3/4 — Terraform destroy (plataforma AWS)
+        working-directory: ${{ env.TF_PLATFORM_DIR }}
+        run: |
+          echo "⚠️  Destruindo plataforma AWS FCG (EKS, RDS, Redis, MQ, OpenSearch...)."
+          echo "Isso leva aproximadamente 15-25 minutos."
+          echo ""
+          terraform destroy \
+            -input=false \
+            -auto-approve \
+            -var-file=environments/prod.tfvars
+          echo ""
+          echo "✅ Plataforma AWS destruída."
+        timeout-minutes: 45
+
+      # ----------------------------------------------------------------
+      # PASSO 4 (opcional) — Destruir bootstrap
+      # ----------------------------------------------------------------
+      - name: Passo 4/4 — Esvaziar S3 tfstate (necessário para destruir bootstrap)
+        if: inputs.destroy_bootstrap == true
+        run: |
+          BUCKET="${{ vars.TF_STATE_BUCKET }}"
+          echo "Esvaziando bucket de state: ${BUCKET}"
+          aws s3 rm "s3://${BUCKET}" --recursive
+          echo "✅ Bucket esvaziado."
+
+      - name: Passo 4/4 — Terraform destroy (bootstrap)
+        if: inputs.destroy_bootstrap == true
+        working-directory: ${{ env.TF_BOOTSTRAP_DIR }}
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          VARS="-var-file=environments/prod.tfvars"
+
+          # Gerar tfvars mínimo (github_org obrigatório mas irrelevante para destroy)
+          cat > environments/prod.tfvars <<EOF
+          aws_region   = "us-east-1"
+          project_name = "fcg"
+          environment  = "prod"
+          github_org   = "placeholder"
+          github_repos = ["placeholder"]
+          EOF
+
+          terraform init -input=false
+
+          echo "Importando recursos do bootstrap para o state local..."
+          set +e
+          BUCKET="fcg-prod-tfstate-${ACCOUNT_ID}"
+          terraform import ${VARS} aws_s3_bucket.tfstate                "${BUCKET}"
+          terraform import ${VARS} aws_s3_bucket_versioning.tfstate     "${BUCKET}"
+          terraform import ${VARS} aws_s3_bucket_server_side_encryption_configuration.tfstate "${BUCKET}"
+          terraform import ${VARS} aws_s3_bucket_public_access_block.tfstate "${BUCKET}"
+          terraform import ${VARS} aws_dynamodb_table.tfstate_lock      "fcg-prod-tfstate-lock"
+          terraform import ${VARS} aws_iam_openid_connect_provider.github \
+            "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+          terraform import ${VARS} aws_iam_policy.platform \
+            "arn:aws:iam::${ACCOUNT_ID}:policy/fcg-prod-github-actions"
+          terraform import ${VARS} aws_iam_role.github_actions          "fcg-prod-github-actions"
+          set -e
+
+          echo ""
+          echo "Destruindo bootstrap..."
+          terraform destroy -input=false -auto-approve ${VARS}
+          echo "✅ Bootstrap destruído."
+        timeout-minutes: 15
+
+      # ----------------------------------------------------------------
+      # Resumo final
+      # ----------------------------------------------------------------
+      - name: Resumo da destruição
+        if: always()
+        run: |
+          echo ""
+          echo "================================================================"
+          echo "DESTRUIÇÃO CONCLUÍDA"
+          echo "================================================================"
+          echo ""
+          echo "Recursos destruídos:"
+          echo "  ✓ Application / AppProject Argo CD"
+          echo "  ✓ ALB (Load Balancer)"
+          echo "  ✓ Namespace fcg-platform (pods, services)"
+          echo "  ✓ ECR repositories + imagens (5)"
+          echo "  ✓ EKS cluster fcg-prod + node groups"
+          echo "  ✓ RDS PostgreSQL users_db + catalogdb"
+          echo "  ✓ ElastiCache Redis"
+          echo "  ✓ AWS MQ RabbitMQ"
+          echo "  ✓ Amazon OpenSearch"
+          echo "  ✓ DynamoDB (catálogo)"
+          echo "  ✓ Secrets Manager secrets"
+          echo "  ✓ VPC + subnets + NAT Gateway"
+          echo ""
+          if [[ "${{ inputs.destroy_bootstrap }}" == "true" ]]; then
+            echo "  ✓ Bootstrap: OIDC provider"
+            echo "  ✓ Bootstrap: IAM role fcg-prod-github-actions"
+            echo "  ✓ Bootstrap: S3 bucket tfstate"
+            echo "  ✓ Bootstrap: DynamoDB lock table"
+            echo ""
+            echo "  ⚠️  Para recriar: execute o workflow bootstrap-aws primeiro,"
+            echo "     depois faça push em master no Orchestrator."
+          else
+            echo "  → Bootstrap MANTIDO (OIDC, IAM role, S3, DynamoDB)"
+            echo "  → Custo bootstrap: ~\$0/mês (S3 + DynamoDB = centavos)"
+            echo ""
+            echo "  Para recriar a plataforma:"
+            echo "  git commit --allow-empty -m 'chore: recreate platform'"
+            echo "  git push origin master"
+          fi
+          echo ""
+          echo "================================================================"

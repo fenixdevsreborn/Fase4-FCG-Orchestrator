@@ -102,12 +102,28 @@ module "eks" {
   authentication_mode                      = "API_AND_CONFIG_MAP"
   enable_cluster_creator_admin_permissions = true
 
+  # Acesso ao cluster via console AWS e kubectl para o usuário fcg-bootstrap-admin
+  access_entries = {
+    console_admin = {
+      principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/fcg-bootstrap-admin"
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
   eks_managed_node_groups = {
     default = {
       instance_types = var.node_instance_types
       min_size       = var.node_group_min_size
       desired_size   = var.node_group_desired_size
       max_size       = var.node_group_max_size
+      capacity_type  = "SPOT"
     }
   }
 
@@ -122,6 +138,10 @@ module "eks_blueprints_addons" {
   cluster_endpoint  = module.eks.cluster_endpoint
   cluster_version   = module.eks.cluster_version
   oidc_provider_arn = module.eks.oidc_provider_arn
+
+  # Desabilita telemetria que tenta criar CloudFormation stack
+  # (exigiria permissão cloudformation:CreateStack na IAM role)
+  enable_telemetry = false
 
   enable_aws_load_balancer_controller = true
   enable_external_secrets             = true
@@ -190,8 +210,16 @@ resource "random_password" "rabbitmq" {
 }
 
 resource "random_password" "opensearch" {
-  length  = 24
-  special = false
+  length           = 16
+  upper            = true
+  lower            = true
+  numeric          = true
+  special          = true
+  override_special = "!#%&()-_=+[]{}?"
+  min_upper        = 2
+  min_lower        = 2
+  min_numeric      = 2
+  min_special      = 1
 }
 
 resource "random_password" "users_jwt" {
@@ -228,14 +256,15 @@ resource "aws_db_instance" "postgres" {
 }
 
 resource "aws_mq_broker" "rabbitmq" {
-  broker_name         = "${local.name}-rabbitmq"
-  deployment_mode     = "SINGLE_INSTANCE"
-  engine_type         = "RabbitMQ"
-  engine_version      = "3.13"
-  host_instance_type  = var.mq_instance_type
-  publicly_accessible = false
-  subnet_ids          = [module.vpc.private_subnets[0]]
-  security_groups     = [aws_security_group.data_services.id]
+  broker_name                = "${local.name}-rabbitmq"
+  deployment_mode            = "SINGLE_INSTANCE"
+  engine_type                = "RabbitMQ"
+  engine_version             = "3.13"
+  host_instance_type         = var.mq_instance_type
+  publicly_accessible        = false
+  auto_minor_version_upgrade = true
+  subnet_ids                 = [module.vpc.private_subnets[0]]
+  security_groups            = [aws_security_group.data_services.id]
 
   user {
     username = var.mq_username
