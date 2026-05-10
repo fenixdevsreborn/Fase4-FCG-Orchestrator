@@ -132,6 +132,7 @@ data "aws_iam_policy_document" "platform" {
       "autoscaling:*",
       "cloudwatch:*",
       "elasticloadbalancing:*",
+      "cloudformation:*",
       "tag:GetResources",
       "tag:GetTagKeys",
       "tag:GetTagValues"

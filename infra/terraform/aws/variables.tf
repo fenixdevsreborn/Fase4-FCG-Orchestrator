@@ -25,7 +25,7 @@ variable "platform_namespace" {
 variable "cluster_version" {
   type        = string
   description = "EKS cluster version."
-  default     = "1.31"
+  default     = "1.32"
 }
 
 variable "vpc_cidr" {
