@@ -337,6 +337,52 @@ jobs:
           aws s3 rm "s3://${BUCKET}" --recursive
           echo "✅ Bucket esvaziado."
 
+      - name: Passo 4/4 — Desanexar IAM Policy de todas as entidades
+        if: inputs.destroy_bootstrap == true
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/fcg-prod-github-actions"
+
+          echo "Desanexando policy ${POLICY_ARN} de todas as entidades..."
+
+          # Desanexar de roles
+          ROLES=$(aws iam list-entities-for-policy \
+            --policy-arn "${POLICY_ARN}" \
+            --entity-filter Role \
+            --query 'PolicyRoles[].RoleName' \
+            --output text 2>/dev/null || echo "")
+          for role in ${ROLES}; do
+            [[ -z "${role}" || "${role}" == "None" ]] && continue
+            echo "  Desanexando de role: ${role}"
+            aws iam detach-role-policy --role-name "${role}" --policy-arn "${POLICY_ARN}"
+          done
+
+          # Desanexar de usuários
+          USERS=$(aws iam list-entities-for-policy \
+            --policy-arn "${POLICY_ARN}" \
+            --entity-filter User \
+            --query 'PolicyUsers[].UserName' \
+            --output text 2>/dev/null || echo "")
+          for user in ${USERS}; do
+            [[ -z "${user}" || "${user}" == "None" ]] && continue
+            echo "  Desanexando de usuário: ${user}"
+            aws iam detach-user-policy --user-name "${user}" --policy-arn "${POLICY_ARN}"
+          done
+
+          # Desanexar de grupos
+          GROUPS=$(aws iam list-entities-for-policy \
+            --policy-arn "${POLICY_ARN}" \
+            --entity-filter Group \
+            --query 'PolicyGroups[].GroupName' \
+            --output text 2>/dev/null || echo "")
+          for group in ${GROUPS}; do
+            [[ -z "${group}" || "${group}" == "None" ]] && continue
+            echo "  Desanexando de grupo: ${group}"
+            aws iam detach-group-policy --group-name "${group}" --policy-arn "${POLICY_ARN}"
+          done
+
+          echo "✅ Policy desanexada de todas as entidades."
+
       - name: Passo 4/4 — Terraform destroy (bootstrap)
         if: inputs.destroy_bootstrap == true
         working-directory: ${{ env.TF_BOOTSTRAP_DIR }}
@@ -372,7 +418,7 @@ jobs:
 
           echo ""
           echo "Destruindo bootstrap..."
-          terraform destroy -input=false -auto-approve ${VARS}
+          terraform destroy -input=false -auto-approve -lock=false ${VARS}
           echo "✅ Bootstrap destruído."
         timeout-minutes: 15
 
