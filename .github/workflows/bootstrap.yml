@@ -61,6 +61,11 @@ jobs:
     name: Bootstrap AWS (OIDC + IAM + S3 + DynamoDB)
     runs-on: ubuntu-latest
     environment: bootstrap
+    # Garante que este job só executa quando disparado MANUALMENTE.
+    if: github.event_name == 'workflow_dispatch'
+    # secrets não pode ser usado em if: de steps — avaliamos aqui no job como env var.
+    env:
+      GH_ADMIN_PAT_SET: ${{ secrets.GH_ADMIN_PAT != '' }}
 
     steps:
       - name: Checkout repository
@@ -159,7 +164,7 @@ jobs:
           echo ""
 
       - name: Auto-configure GitHub secrets (se GH_ADMIN_PAT fornecido)
-        if: inputs.auto_configure_secrets == true && secrets.GH_ADMIN_PAT != ''
+        if: inputs.auto_configure_secrets == true && env.GH_ADMIN_PAT_SET == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_ADMIN_PAT }}
           ORG: ${{ inputs.github_org }}
@@ -217,7 +222,7 @@ jobs:
           echo "Próximo passo: excluir BOOTSTRAP_AWS_ACCESS_KEY_ID e BOOTSTRAP_AWS_SECRET_ACCESS_KEY."
 
       - name: Instrucoes para configuracao manual (se GH_ADMIN_PAT ausente)
-        if: inputs.auto_configure_secrets == false || secrets.GH_ADMIN_PAT == ''
+        if: inputs.auto_configure_secrets == false || env.GH_ADMIN_PAT_SET != 'true'
         env:
           ROLE_ARN: ${{ steps.tf-outputs.outputs.role_arn }}
           TF_BUCKET: ${{ steps.tf-outputs.outputs.tf_bucket }}
