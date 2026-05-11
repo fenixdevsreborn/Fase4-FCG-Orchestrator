@@ -67,6 +67,9 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
 
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+
       - name: Configure AWS credentials (bootstrap session)
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
@@ -129,6 +132,7 @@ jobs:
           fi
 
       - name: Limpar secrets pendentes de deleção
+        if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
 
@@ -169,6 +173,10 @@ jobs:
             fi
           done
 
+      - name: Adotar recursos criados em apply anterior incompleto
+        if: github.event_name != 'pull_request'
+        run: bash scripts/recover-terraform-state.sh "${{ env.TF_WORKING_DIR }}"
+
       - name: Terraform plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -input=false -lock=false -var-file=environments/prod.tfvars -out=tfplan
@@ -193,6 +201,9 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -269,6 +280,9 @@ jobs:
               done
             fi
           done
+
+      - name: Adotar recursos criados em apply anterior incompleto
+        run: bash scripts/recover-terraform-state.sh "${{ env.TF_WORKING_DIR }}"
 
       - name: Terraform apply
         working-directory: ${{ env.TF_WORKING_DIR }}
