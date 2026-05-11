@@ -43,7 +43,7 @@ Para as APIs (`Fase4-FCG-UsersAPI`, `Fase4-FCG-CatalogAPI`, `Fase4-FCG-PaymentsA
 | Uso | Exemplos |
 |-----|-----------|
 | Push ECR | `ecr:GetAuthorizationToken`, `ecr:BatchCheckLayerAvailability`, `ecr:PutImage`, `ecr:InitiateLayerUpload`, `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload` nos repositórios da plataforma |
-| Terraform | `ec2:*`, `eks:*`, `iam:*` (limitado), `rds:*`, `elasticache:*`, `opensearch:*`, `dynamodb:*`, `secretsmanager:*`, `mq:*`, etc., conforme recursos em `main.tf` |
+| Terraform | `ec2:*`, `eks:*`, `iam:*` (limitado), `rds:*`, `elasticache:*`, `opensearch:*`, `dynamodb:*`, `secretsmanager:*`, etc., conforme recursos em `main.tf` |
 | Leitura EKS (opcional em CI) | `eks:DescribeCluster` |
 
 Ajuste com políticas geridas ou JSON mínimo por ambiente; prefira **permissões por recurso** (ARN de ECR, cluster EKS) em produção.

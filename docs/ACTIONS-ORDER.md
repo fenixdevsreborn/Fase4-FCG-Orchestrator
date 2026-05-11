@@ -9,7 +9,7 @@ Guia de referência para a ordem correta de execução de todos os workflows CI/
 | # | Repo | Workflow | Trigger | O que faz |
 |---|---|---|---|---|
 | 01 | Orchestrator | `bootstrap-aws` | Manual (workflow_dispatch) | Cria OIDC, IAM role, S3, DynamoDB na AWS + configura secrets nos repos |
-| 02 | Orchestrator | `terraform-aws` | Push em `master` (paths: infra/ ou deploy/helm/) | Cria EKS, ECR, RDS, Redis, MQ, OpenSearch, DynamoDB, Argo CD — e registra o Argo CD no cluster automaticamente |
+| 02 | Orchestrator | `terraform-aws` | Push em `master` (paths: infra/ ou deploy/helm/) | Cria EKS, ECR, RDS, Redis, OpenSearch, DynamoDB, secrets do RabbitMQ interno, Argo CD — e registra o Argo CD no cluster automaticamente |
 | 03 | Orchestrator | `gateway-api-ci-cd` | Push em `master` (paths: src/) ou manual | Build + push Gateway YARP → ECR + Docker Hub → atualiza values-prod.yaml |
 | 04a | UsersAPI | `users-api-ci-cd` | Push em `master` ou manual | Build + test + push → ECR + Docker Hub → atualiza values-prod.yaml |
 | 04b | CatalogAPI | `catalog-api-ci-cd` | Push em `master` ou manual | Build + test + push → ECR + Docker Hub → atualiza values-prod.yaml |
@@ -65,10 +65,10 @@ Actions → Orchestrator → terraform-aws → Run workflow
 3. `apply` — terraform apply + render values-prod.yaml + **registra Argo CD automaticamente**
 
 **O que cria (~25 min):**
-- EKS cluster `fcg-prod` (Kubernetes 1.32, Spot instances t3.small/t3.medium)
+- EKS cluster `fcg-prod` (Kubernetes 1.34, até 2 nós `m7i-flex.large`)
 - 6 repositórios ECR
-- RDS PostgreSQL × 2 (users_db, catalogdb)
-- AWS MQ RabbitMQ (`mq.m5.large`)
+- RDS PostgreSQL consolidado (`users_db` e `catalogdb` criados por Job Kubernetes)
+- Secrets do RabbitMQ interno; o broker roda no Helm chart como `rabbitmq-service:5672`
 - ElastiCache Redis
 - Amazon OpenSearch
 - DynamoDB (catalog metadata)
@@ -173,7 +173,7 @@ destroy_bootstrap: false   (mantenha false para poder recriar depois)
 1. Kubernetes → Argo CD App → Ingress → namespace
 2. ECR → esvaziar imagens
 3. AWS residual → ALBs → NAT Gateways → **Elastic IPs** → ENIs → SGs K8s
-4. Terraform destroy → VPC + EKS + RDS + Redis + MQ + OpenSearch + DynamoDB + Secrets Manager
+4. Terraform destroy → VPC + EKS + RDS + Redis + OpenSearch + DynamoDB + Secrets Manager
 5. (opcional) Bootstrap → desanexa IAM Policy → terraform destroy
 
 **Tempo:** ~20-30 min.
@@ -198,7 +198,7 @@ bootstrap-aws (01)
       │ (cria IAM role para CI/CD)
       ▼
 terraform-aws (02) ──────────────────────────── ~25 min
-      │ cria EKS, ECR, RDS, Redis, MQ, OpenSearch
+      │ cria EKS, ECR, RDS, Redis, OpenSearch
       │ renderiza values-prod.yaml com endpoints reais
       │ registra Argo CD no cluster (automático)
       │

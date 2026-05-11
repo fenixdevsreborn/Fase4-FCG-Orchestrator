@@ -56,10 +56,38 @@ global:
           remoteRef:
             key: fcg/prod/postgres-bootstrap
             property: CATALOG_PASSWORD
+    - name: rabbitmq-secrets
+      refreshInterval: 1h
+      data:
+        - secretKey: RABBITMQ_DEFAULT_USER
+          remoteRef:
+            key: fcg/prod/rabbitmq
+            property: RABBITMQ_DEFAULT_USER
+        - secretKey: RABBITMQ_DEFAULT_PASS
+          remoteRef:
+            key: fcg/prod/rabbitmq
+            property: RABBITMQ_DEFAULT_PASS
   postgresInit:
     enabled: true
     image: postgres:16-alpine
     secretName: postgres-bootstrap-secrets
+
+rabbitmq:
+  enabled: true
+  image: rabbitmq:3.13-management-alpine
+  replicaCount: 1
+  secretName: rabbitmq-secrets
+  service:
+    name: rabbitmq-service
+    amqpPort: 5672
+    managementPort: 15672
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 services:
   frontend-web:
@@ -189,7 +217,7 @@ services:
     env:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      RabbitMQ__Port: "5671"
+      RabbitMQ__Port: "5672"
       RabbitMQ__VirtualHost: /
       Jwt__Issuer: UsersAPI
       Jwt__Audience: UsersAPI
@@ -263,7 +291,7 @@ services:
     env:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      RabbitMQ__Port: "5671"
+      RabbitMQ__Port: "5672"
       RabbitMQ__VirtualHost: /
       CatalogCache__DefaultTtlMinutes: "5"
       DynamoDb__Enabled: "true"
@@ -359,7 +387,7 @@ services:
     env:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      RabbitMQ__Port: "5671"
+      RabbitMQ__Port: "5672"
       RabbitMQ__VirtualHost: /
     secretRefs:
       - payments-api-secrets
@@ -414,7 +442,7 @@ services:
     env:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      RABBITMQ_PORT: "5671"
+      RABBITMQ_PORT: "5672"
     secretRefs:
       - notifications-api-secrets
     resources:

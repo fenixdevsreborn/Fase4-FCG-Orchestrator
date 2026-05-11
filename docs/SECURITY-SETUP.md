@@ -166,7 +166,7 @@ Configure em **cada repositório**.
 |---|---|---|---|
 | `DOCKERHUB_TOKEN` | GitHub Secret (5 repos) | Docker Hub → Account Settings → Security → revogar antigo → criar novo → atualizar secrets | 90 dias |
 | `GITOPS_APP_PRIVATE_KEY` | GitHub Secret (4 APIs) | GitHub App → Private keys → Generate → revogar antiga → atualizar secrets | 1 ano |
-| Senhas RDS / Redis / MQ / OpenSearch | AWS Secrets Manager (Terraform) | `terraform apply` com `random_password` regenerado | 6 meses |
+| Senhas RDS / Redis / RabbitMQ / OpenSearch | AWS Secrets Manager (Terraform) | `terraform apply` com `random_password` regenerado | 6 meses |
 | `AWS_GITHUB_ROLE_ARN` | GitHub Secret | Não é credencial — é ARN de role. Não rotacionar | — |
 
 ---

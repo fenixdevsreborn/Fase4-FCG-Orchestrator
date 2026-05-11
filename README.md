@@ -54,7 +54,7 @@ Fase4-FCG-Orchestrator/
 ├── .github/workflows/       # terraform-aws.yml + gateway-api-ci-cd.yml (push em master)
 ├── infra/
 │   ├── terraform/bootstrap/ # OIDC, IAM role GitHub Actions, S3 state, DynamoDB lock
-│   └── terraform/aws/       # EKS, ECR (6 repos), RDS consolidado, MQ, Redis, OpenSearch, DynamoDB
+│   └── terraform/aws/       # EKS, ECR (6 repos), RDS consolidado, Redis, OpenSearch, DynamoDB, secrets do RabbitMQ
 ├── deploy/helm/fcg-platform/ # Chart Helm de produção (Argo CD)
 ├── gitops/argocd/           # AppProject + Application (targetRevision: master)
 ├── scripts/                 # render-values.sh + smoke-test.ps1 (ALB)

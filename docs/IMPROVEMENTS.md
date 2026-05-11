@@ -71,10 +71,10 @@ Análise comparando a implementação atual com o spec do Tech Challenge (`docs/
   - Anotação `alb.ingress.kubernetes.io/certificate-arn` no Ingress
 - **Spec menciona "exposição via Load Balancer/Ingress"** — funciona, mas HTTPS fica feio sem certificado.
 
-### 10. HA do RabbitMQ (AWS MQ)
-- **Atual:** `deployment_mode = SINGLE_INSTANCE_BROKER` em `aws_mq_broker.rabbitmq`.
+### 10. HA do RabbitMQ
+- **Atual:** RabbitMQ single-replica em Kubernetes (`deploy/helm/fcg-platform/templates/rabbitmq.yaml`) para caber no perfil Free Tier.
 - **Risco:** broker indisponível = todo evento async parado.
-- **Ação:** trocar para `CLUSTER_MULTI_AZ`. Custa ~3× mais ($), mas elimina SPOF.
+- **Ação:** em produção real, mover para broker gerenciado com classe suportada pela AWS e multi-AZ. Custa mais ($), mas elimina SPOF.
 
 ### 11. Snapshot final dos RDS / DynamoDB Point-in-Time Recovery
 - **Atual:** RDS provavelmente com `skip_final_snapshot = true`.

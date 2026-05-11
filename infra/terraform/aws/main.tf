@@ -30,9 +30,15 @@ locals {
     username = "fcgadmin"
   }
 
-  rabbitmq_host = replace(replace(aws_mq_broker.rabbitmq.instances[0].endpoints[0], "amqps://", ""), ":5671", "")
+  rabbitmq_host = "rabbitmq-service"
 
   secret_payloads = {
+    "rabbitmq" = {
+      RABBITMQ_DEFAULT_USER = var.mq_username
+      RABBITMQ_DEFAULT_PASS = random_password.rabbitmq.result
+      RABBITMQ_USERNAME     = var.mq_username
+      RABBITMQ_PASSWORD     = random_password.rabbitmq.result
+    }
     "users-api" = {
       ConnectionStrings__DefaultConnection = "Host=${aws_db_instance.postgres.address};Port=${aws_db_instance.postgres.port};Database=${local.postgres.users.db_name};Username=${local.postgres.users.username};Password=${random_password.postgres["users"].result}"
       RabbitMQ__Host                       = local.rabbitmq_host
@@ -286,30 +292,6 @@ resource "aws_db_instance" "postgres" {
   deletion_protection    = false
   multi_az               = false
   tags                   = local.common_tags
-}
-
-resource "aws_mq_broker" "rabbitmq" {
-  broker_name                = "${local.name}-rabbitmq"
-  deployment_mode            = "SINGLE_INSTANCE"
-  engine_type                = "RabbitMQ"
-  engine_version             = "3.13"
-  host_instance_type         = var.mq_instance_type
-  storage_type               = "ebs"
-  publicly_accessible        = false
-  auto_minor_version_upgrade = true
-  subnet_ids                 = [module.vpc.private_subnets[0]]
-  security_groups            = [aws_security_group.data_services.id]
-
-  user {
-    username = var.mq_username
-    password = random_password.rabbitmq.result
-  }
-
-  logs {
-    general = true
-  }
-
-  tags = local.common_tags
 }
 
 resource "aws_elasticache_subnet_group" "redis" {

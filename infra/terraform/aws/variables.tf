@@ -74,12 +74,6 @@ variable "db_instance_class" {
   default     = "db.t3.micro"
 }
 
-variable "mq_instance_type" {
-  type        = string
-  description = "Amazon MQ broker instance type."
-  default     = "mq.t3.micro"
-}
-
 variable "redis_node_type" {
   type        = string
   description = "ElastiCache node type."

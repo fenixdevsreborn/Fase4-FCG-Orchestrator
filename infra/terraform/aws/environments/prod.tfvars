@@ -10,6 +10,5 @@ node_group_min_size      = 2
 node_group_desired_size  = 2
 node_group_max_size      = 2
 db_instance_class        = "db.t3.micro"
-mq_instance_type         = "mq.t3.micro"
 redis_node_type          = "cache.t3.micro"
 opensearch_instance_type = "t3.small.search"

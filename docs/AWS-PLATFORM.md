@@ -7,7 +7,7 @@ A entrega cloud-native da FCG (Fase 4) vive **neste** repositório (`Fase2-Orche
 | Caminho | Uso |
 |---------|-----|
 | `infra/terraform/bootstrap` | OIDC GitHub→AWS, IAM role, state backend (S3+DynamoDB) — `terraform apply` único, local |
-| `infra/terraform/aws` | VPC, EKS, ECR, RDS consolidado, MQ, Redis, OpenSearch, DynamoDB, Secrets Manager — aplicado pelo CI |
+| `infra/terraform/aws` | VPC, EKS, ECR, RDS consolidado, Redis, OpenSearch, DynamoDB, Secrets Manager e credenciais do RabbitMQ interno — aplicado pelo CI |
 | `deploy/helm/fcg-platform` | Chart Helm consumido pelo Argo CD |
 | `gitops/argocd` | `AppProject` e `Application` |
 | `scripts/render-values.sh` | Substitui placeholders em `values-prod.yaml` a partir dos outputs do Terraform |
@@ -51,6 +51,7 @@ O chart define `payments-api-service` e `notifications-api-service` com **porta 
 - O Gateway atende `/api`, `/swagger`, `/docs` e `/health`.
 - Um único ALB é compartilhado por frontend e gateway via annotation `alb.ingress.kubernetes.io/group.name: fcg-platform`.
 - O RDS é consolidado em uma instância `db.t3.micro`; um Job Kubernetes cria os databases lógicos de UsersAPI e CatalogAPI.
+- O RabbitMQ roda dentro do próprio EKS como `rabbitmq-service:5672`, evitando Amazon MQ no perfil Free Tier.
 
 ## Smoke test
 

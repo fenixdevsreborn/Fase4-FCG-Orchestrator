@@ -124,7 +124,6 @@ data "aws_iam_policy_document" "platform" {
       "opensearch:*",
       "dynamodb:*",
       "secretsmanager:*",
-      "mq:*",
       "logs:*",
       "kms:*",
       "ecr:*",

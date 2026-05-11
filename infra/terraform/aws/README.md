@@ -7,7 +7,7 @@ Provisiona a base da Fase 4 na AWS:
 - Add-ons: `AWS Load Balancer Controller`, `External Secrets`, `Metrics Server` e `Argo CD`
 - `ECR` para `frontend-web`, `gateway-api`, `users-api`, `catalog-api`, `payments-api`, `notifications-api`
 - `RDS PostgreSQL` consolidado para `UsersAPI` e `CatalogAPI`
-- `Amazon MQ for RabbitMQ`
+- `RabbitMQ` in-cluster via Helm, com credenciais no Secrets Manager
 - `ElastiCache Redis`
 - `Amazon OpenSearch`
 - `DynamoDB`
@@ -38,5 +38,6 @@ Em produção, este `apply` é executado pelo workflow `.github/workflows/terraf
 
 - `environments/prod.tfvars` contém apenas parâmetros não sensíveis.
 - Credenciais de banco, JWT, RabbitMQ e OpenSearch são geradas pelo Terraform e publicadas no `Secrets Manager`.
+- O Terraform não cria Amazon MQ no perfil Free Tier; o chart Helm sobe um RabbitMQ leve dentro do EKS como `rabbitmq-service:5672`.
 - O chart Helm em `deploy/helm/fcg-platform` consome esses segredos via `External Secrets` e roda um Job idempotente para criar os databases lógicos no RDS consolidado.
 - O script `scripts/render-values.sh` substitui placeholders em `values-prod.yaml` (account ID, IRSA ARN) usando `terraform output -json`.

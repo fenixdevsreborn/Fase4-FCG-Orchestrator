@@ -24,9 +24,9 @@ Corresponde à variável de ambiente `RabbitMQ__Host=localhost`.
 |---|---|---|:---:|:---:|:---:|:---:|:---:|
 | `ConnectionStrings__DefaultConnection` | RDS PostgreSQL (users_db) | Secret | X | | | | |
 | `ConnectionStrings__CatalogDatabase` | RDS PostgreSQL (catalogdb) | Secret | | X | | | |
-| `RabbitMQ__Host` | AWS MQ broker hostname | Secret | X | X | X | X | |
-| `RabbitMQ__Username` | AWS MQ username | Secret | X | X | X | X | |
-| `RabbitMQ__Password` | AWS MQ password | Secret | X | X | X | X | |
+| `RabbitMQ__Host` | RabbitMQ service hostname | Secret | X | X | X | X | |
+| `RabbitMQ__Username` | RabbitMQ username | Secret | X | X | X | X | |
+| `RabbitMQ__Password` | RabbitMQ password | Secret | X | X | X | X | |
 | `Jwt__Key` | Chave de assinatura JWT | Secret | X | | | | |
 | `CatalogCache__ConnectionString` | ElastiCache Redis endpoint | Secret | | X | | | |
 | `DynamoDb__TableName` | DynamoDB table name | Config | | X | | | |
@@ -55,6 +55,7 @@ Secrets criados pelo Terraform (`main.tf` → `local.secret_payloads`):
 - `fcg/prod/catalog-api`
 - `fcg/prod/payments-api`
 - `fcg/prod/notifications-api`
+- `fcg/prod/rabbitmq`
 
 ---
 

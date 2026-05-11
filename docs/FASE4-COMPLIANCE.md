@@ -39,7 +39,7 @@ Cruzamento dos requisitos do Tech Challenge (FASE 4) com a implementação atual
 |------|-------------|---------------|
 | Domínio público no ALB | hostname customizado | adicionar Route53 + cert-manager (não exigido por FASE 4) |
 | Logs centralizados | Fluentbit/CloudWatch agent | habilitar `enable_aws_for_fluentbit` no `eks_blueprints_addons` |
-| HA do RabbitMQ | broker em modo `CLUSTER_MULTI_AZ` | trocar `deployment_mode` em `aws_mq_broker.rabbitmq` |
+| HA do RabbitMQ | perfil Free Tier usa single replica in-cluster | para produção real, usar broker gerenciado com classe suportada e multi-AZ |
 | Snapshot final do RDS | `skip_final_snapshot = false` | ajustar para produção real |
 
 ## Evidências para o vídeo Pitch
