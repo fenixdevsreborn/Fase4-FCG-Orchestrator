@@ -64,7 +64,7 @@ services:
   users-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/users-api
-      tag: "626b191d432e"
+      tag: \"626b191d432e\"
 
   catalog-api:
     image:
