@@ -39,10 +39,99 @@ aws_query() {
   aws "$@" --output text 2>/dev/null || true
 }
 
+helm_status_field() {
+  local namespace="$1"
+  local release="$2"
+  local field="$3"
+
+  helm status "${release}" -n "${namespace}" 2>/dev/null \
+    | awk -F': ' -v field="${field}" '$1 == field { print $2; exit }' \
+    || true
+}
+
+helm_last_deployed_revision() {
+  local namespace="$1"
+  local release="$2"
+
+  helm history "${release}" -n "${namespace}" -o json 2>/dev/null \
+    | python3 -c 'import json, sys
+try:
+    history = json.load(sys.stdin)
+except Exception:
+    history = []
+deployed = [
+    int(item.get("revision", 0))
+    for item in history
+    if item.get("status") == "deployed"
+]
+print(max(deployed) if deployed else "")
+' 2>/dev/null || true
+}
+
+delete_pending_helm_secrets() {
+  local namespace="$1"
+  local release="$2"
+
+  if ! command -v kubectl >/dev/null 2>&1; then
+    echo "kubectl indisponivel; nao foi possivel remover secrets Helm pendentes."
+    return 0
+  fi
+
+  kubectl get secrets -n "${namespace}" -l "owner=helm,name=${release}" -o json 2>/dev/null \
+    | python3 -c 'import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    data = {}
+for item in data.get("items", []):
+    labels = item.get("metadata", {}).get("labels", {})
+    if labels.get("status", "").startswith("pending-"):
+        print(item.get("metadata", {}).get("name", ""))
+' 2>/dev/null \
+    | while read -r secret_name; do
+        if [[ -n "${secret_name}" ]]; then
+          echo "Removendo secret Helm pendente: ${namespace}/${secret_name}"
+          kubectl delete secret -n "${namespace}" "${secret_name}" --ignore-not-found
+        fi
+      done \
+    || true
+}
+
+clear_pending_helm_operation() {
+  local namespace="$1"
+  local release="$2"
+  local status
+  local deployed_revision
+
+  if ! command -v helm >/dev/null 2>&1; then
+    return 0
+  fi
+
+  status="$(helm_status_field "${namespace}" "${release}" "STATUS")"
+  if [[ "${status}" != pending-* ]]; then
+    return 0
+  fi
+
+  echo "Release Helm ${namespace}/${release} esta em ${status}. Limpando operacao pendente..."
+
+  deployed_revision="$(helm_last_deployed_revision "${namespace}" "${release}")"
+  if [[ -n "${deployed_revision}" ]]; then
+    echo "Tentando rollback de ${namespace}/${release} para revisao ${deployed_revision}..."
+    if helm rollback "${release}" "${deployed_revision}" -n "${namespace}" --wait --timeout 5m; then
+      echo "Rollback OK: ${namespace}/${release}"
+      return 0
+    fi
+  fi
+
+  delete_pending_helm_secrets "${namespace}" "${release}"
+}
+
 adopt_or_remove_helm_release() {
   local address="$1"
   local namespace="$2"
   local release="$3"
+
+  clear_pending_helm_operation "${namespace}" "${release}"
 
   if state_has "${address}"; then
     echo "State OK: ${address}"
