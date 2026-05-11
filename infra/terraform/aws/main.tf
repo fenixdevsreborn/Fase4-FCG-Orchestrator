@@ -210,6 +210,8 @@ module "eks_blueprints_addons" {
   }
 
   tags = local.common_tags
+
+  depends_on = [module.eks]
 }
 
 resource "aws_security_group" "data_services" {
@@ -444,8 +446,9 @@ module "catalog_irsa_role" {
 resource "aws_secretsmanager_secret" "application" {
   for_each = local.secret_payloads
 
-  name = "fcg/${var.environment}/${each.key}"
-  tags = local.common_tags
+  name                    = "fcg/${var.environment}/${each.key}"
+  recovery_window_in_days = 0
+  tags                    = local.common_tags
 }
 
 resource "aws_secretsmanager_secret_version" "application" {

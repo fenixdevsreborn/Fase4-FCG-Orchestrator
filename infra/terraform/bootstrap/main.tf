@@ -103,9 +103,10 @@ data "aws_iam_policy_document" "trust" {
 }
 
 resource "aws_iam_role" "github_actions" {
-  name               = local.role_name
-  assume_role_policy = data.aws_iam_policy_document.trust.json
-  tags               = local.common_tags
+  name                 = local.role_name
+  assume_role_policy   = data.aws_iam_policy_document.trust.json
+  max_session_duration = 21600
+  tags                 = local.common_tags
 }
 
 # Permissions broad enough for Terraform apply of the main stack and ECR push from API CIs.

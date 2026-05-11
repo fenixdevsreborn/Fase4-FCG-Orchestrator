@@ -5,16 +5,14 @@ name: destroy-aws
 # Ordem de destruição (inverso da criação):
 #   1. Kubernetes (Application Argo CD → Ingress → ALB)
 #   2. Imagens ECR (esvazia antes do terraform destroy)
-#   3. Plataforma AWS (EKS, RDS, Redis, MQ, OpenSearch, DynamoDB, VPC...)
+#   3. Plataforma AWS (EKS, RDS, Redis, OpenSearch, DynamoDB, VPC...)
 #   4. Bootstrap (OIDC, IAM role, S3 tfstate, DynamoDB lock) — OPCIONAL
 #
 # Recursos com custo relevante destruídos:
 #   EKS cluster + node group      ~$0.10/h + nodes
-#   RDS PostgreSQL x2             ~$0.02/h cada
+#   RDS PostgreSQL consolidado    ~$0.02/h
 #   OpenSearch                    ~$0.09/h
 #   ElastiCache Redis             ~$0.02/h
-#   AWS MQ RabbitMQ               ~$0.02/h
-#   NAT Gateway                   ~$0.05/h
 #
 # Para RECRIAR: basta fazer push em master (se bootstrap mantido)
 #               ou rodar bootstrap-aws antes (se bootstrap destruído).
@@ -42,6 +40,7 @@ env:
   TF_PLATFORM_DIR: infra/terraform/aws
   TF_BOOTSTRAP_DIR: infra/terraform/bootstrap
   TF_STATE_KEY: aws/prod/terraform.tfstate
+  AWS_ROLE_DURATION_SECONDS: 21600
 
 jobs:
   destroy:
@@ -64,14 +63,13 @@ jobs:
           echo ""
           echo "Recursos que serão destruídos:"
           echo "  • EKS cluster + node groups"
-          echo "  • RDS PostgreSQL (users_db + catalogdb)"
+          echo "  • RDS PostgreSQL consolidado"
           echo "  • ElastiCache Redis"
-          echo "  • AWS MQ RabbitMQ"
           echo "  • Amazon OpenSearch"
           echo "  • DynamoDB (catálogo de metadados)"
-          echo "  • ECR repositories (5) + todas as imagens"
+          echo "  • ECR repositories (6) + todas as imagens"
           echo "  • Secrets Manager (todas as senhas geradas)"
-          echo "  • VPC, subnets, NAT Gateway, security groups"
+          echo "  • VPC, subnets, security groups"
           echo "  • IAM roles de aplicação (IRSA, etc.)"
           if [[ "${{ inputs.destroy_bootstrap }}" == "true" ]]; then
             echo "  • BOOTSTRAP: OIDC provider, IAM role GitHub Actions"
@@ -81,11 +79,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials (bootstrap session)
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+
+      - name: Ensure GitHub Actions role supports long Terraform sessions
+        run: |
+          ROLE_ARN="${{ secrets.AWS_GITHUB_ROLE_ARN }}"
+          ROLE_NAME="${ROLE_ARN##*/}"
+          aws iam update-role \
+            --role-name "${ROLE_NAME}" \
+            --max-session-duration "${{ env.AWS_ROLE_DURATION_SECONDS }}"
+          sleep 10
+
+      - name: Configure AWS credentials (long Terraform session)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+          role-duration-seconds: ${{ env.AWS_ROLE_DURATION_SECONDS }}
 
       - name: Verificar identidade AWS
         run: |
@@ -481,15 +495,14 @@ jobs:
           echo "  ✓ Application / AppProject Argo CD"
           echo "  ✓ ALB (Load Balancer)"
           echo "  ✓ Namespace fcg-platform (pods, services)"
-          echo "  ✓ ECR repositories + imagens (5)"
+          echo "  ✓ ECR repositories + imagens (6)"
           echo "  ✓ EKS cluster fcg-prod + node groups"
-          echo "  ✓ RDS PostgreSQL users_db + catalogdb"
+          echo "  ✓ RDS PostgreSQL consolidado"
           echo "  ✓ ElastiCache Redis"
-          echo "  ✓ AWS MQ RabbitMQ"
           echo "  ✓ Amazon OpenSearch"
           echo "  ✓ DynamoDB (catálogo)"
           echo "  ✓ Secrets Manager secrets"
-          echo "  ✓ VPC + subnets + NAT Gateway"
+          echo "  ✓ VPC + subnets"
           echo ""
           if [[ "${{ inputs.destroy_bootstrap }}" == "true" ]]; then
             echo "  ✓ Bootstrap: OIDC provider"

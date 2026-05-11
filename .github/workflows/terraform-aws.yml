@@ -36,6 +36,7 @@ env:
   TF_WORKING_DIR: infra/terraform/aws
   TF_STATE_KEY: aws/prod/terraform.tfstate
   HELM_CHART_DIR: deploy/helm/fcg-platform
+  AWS_ROLE_DURATION_SECONDS: 21600
 
 jobs:
   validate:
@@ -66,11 +67,27 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (bootstrap session)
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+
+      - name: Ensure GitHub Actions role supports long Terraform sessions
+        run: |
+          ROLE_ARN="${{ secrets.AWS_GITHUB_ROLE_ARN }}"
+          ROLE_NAME="${ROLE_ARN##*/}"
+          aws iam update-role \
+            --role-name "${ROLE_NAME}" \
+            --max-session-duration "${{ env.AWS_ROLE_DURATION_SECONDS }}"
+          sleep 10
+
+      - name: Configure AWS credentials (long Terraform session)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+          role-duration-seconds: ${{ env.AWS_ROLE_DURATION_SECONDS }}
 
       - name: Terraform fmt
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -111,6 +128,47 @@ jobs:
             echo "Nenhum lock ativo. Prosseguindo."
           fi
 
+      - name: Limpar secrets pendentes de deleção
+        run: |
+          set -euo pipefail
+
+          secrets=(
+            "fcg/prod/users-api"
+            "fcg/prod/catalog-api"
+            "fcg/prod/payments-api"
+            "fcg/prod/notifications-api"
+            "fcg/prod/rabbitmq"
+            "fcg/prod/postgres-bootstrap"
+          )
+
+          for secret in "${secrets[@]}"; do
+            deleted_date=$(aws secretsmanager describe-secret \
+              --secret-id "${secret}" \
+              --query "DeletedDate" \
+              --output text 2>/dev/null || true)
+
+            if [[ -n "${deleted_date}" && "${deleted_date}" != "None" ]]; then
+              echo "Secret ${secret} está pendente de deleção. Removendo imediatamente para recriação pelo Terraform..."
+              if ! aws secretsmanager delete-secret \
+                --secret-id "${secret}" \
+                --force-delete-without-recovery; then
+                echo "Forçando recuperação temporária de ${secret} antes da remoção imediata..."
+                aws secretsmanager restore-secret --secret-id "${secret}" || true
+                aws secretsmanager delete-secret \
+                  --secret-id "${secret}" \
+                  --force-delete-without-recovery
+              fi
+
+              for attempt in {1..30}; do
+                if aws secretsmanager describe-secret --secret-id "${secret}" >/dev/null 2>&1; then
+                  sleep 2
+                else
+                  break
+                fi
+              done
+            fi
+          done
+
       - name: Terraform plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -input=false -lock=false -var-file=environments/prod.tfvars -out=tfplan
@@ -139,11 +197,27 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (bootstrap session)
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+
+      - name: Ensure GitHub Actions role supports long Terraform sessions
+        run: |
+          ROLE_ARN="${{ secrets.AWS_GITHUB_ROLE_ARN }}"
+          ROLE_NAME="${ROLE_ARN##*/}"
+          aws iam update-role \
+            --role-name "${ROLE_NAME}" \
+            --max-session-duration "${{ env.AWS_ROLE_DURATION_SECONDS }}"
+          sleep 10
+
+      - name: Configure AWS credentials (long Terraform session)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
+          role-duration-seconds: ${{ env.AWS_ROLE_DURATION_SECONDS }}
 
       - name: Terraform init
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -155,12 +229,61 @@ jobs:
             -backend-config="use_lockfile=true" \
             -backend-config="encrypt=true"
 
+      - name: Limpar secrets pendentes de deleção
+        run: |
+          set -euo pipefail
+
+          secrets=(
+            "fcg/prod/users-api"
+            "fcg/prod/catalog-api"
+            "fcg/prod/payments-api"
+            "fcg/prod/notifications-api"
+            "fcg/prod/rabbitmq"
+            "fcg/prod/postgres-bootstrap"
+          )
+
+          for secret in "${secrets[@]}"; do
+            deleted_date=$(aws secretsmanager describe-secret \
+              --secret-id "${secret}" \
+              --query "DeletedDate" \
+              --output text 2>/dev/null || true)
+
+            if [[ -n "${deleted_date}" && "${deleted_date}" != "None" ]]; then
+              echo "Secret ${secret} está pendente de deleção. Removendo imediatamente para recriação pelo Terraform..."
+              if ! aws secretsmanager delete-secret \
+                --secret-id "${secret}" \
+                --force-delete-without-recovery; then
+                echo "Forçando recuperação temporária de ${secret} antes da remoção imediata..."
+                aws secretsmanager restore-secret --secret-id "${secret}" || true
+                aws secretsmanager delete-secret \
+                  --secret-id "${secret}" \
+                  --force-delete-without-recovery
+              fi
+
+              for attempt in {1..30}; do
+                if aws secretsmanager describe-secret --secret-id "${secret}" >/dev/null 2>&1; then
+                  sleep 2
+                else
+                  break
+                fi
+              done
+            fi
+          done
+
       - name: Terraform apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         # -lock-timeout=10m: aguarda até 10 min se outro apply estiver rodando.
         # -parallelism=1: evita corrida entre Helm add-ons e webhooks recém-criados no EKS.
         # Não forçamos unlock aqui — o apply precisa gerenciar seu próprio lock.
         run: terraform apply -input=false -auto-approve -lock-timeout=10m -parallelism=1 -var-file=environments/prod.tfvars
+
+      - name: Upload errored Terraform state
+        if: failure()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: terraform-errored-state
+          path: ${{ env.TF_WORKING_DIR }}/errored.tfstate
+          if-no-files-found: ignore
 
       - name: Capture Terraform outputs
         working-directory: ${{ env.TF_WORKING_DIR }}
