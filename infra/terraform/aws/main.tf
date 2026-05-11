@@ -166,12 +166,27 @@ module "eks_blueprints_addons" {
   enable_aws_for_fluentbit            = false
   enable_aws_cloudwatch_metrics       = false
 
+  aws_load_balancer_controller = {
+    wait    = true
+    timeout = 600
+    set = [
+      {
+        name  = "enableServiceMutatorWebhook"
+        value = "false"
+      }
+    ]
+  }
+
   argocd = {
     namespace = "argocd"
+    wait      = true
+    timeout   = 600
   }
 
   external_secrets = {
     namespace = "external-secrets"
+    wait      = true
+    timeout   = 600
   }
 
   aws_for_fluentbit = {
@@ -279,6 +294,7 @@ resource "aws_mq_broker" "rabbitmq" {
   engine_type                = "RabbitMQ"
   engine_version             = "3.13"
   host_instance_type         = var.mq_instance_type
+  storage_type               = "ebs"
   publicly_accessible        = false
   auto_minor_version_upgrade = true
   subnet_ids                 = [module.vpc.private_subnets[0]]

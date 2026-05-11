@@ -158,8 +158,9 @@ jobs:
       - name: Terraform apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         # -lock-timeout=10m: aguarda até 10 min se outro apply estiver rodando.
+        # -parallelism=1: evita corrida entre Helm add-ons e webhooks recém-criados no EKS.
         # Não forçamos unlock aqui — o apply precisa gerenciar seu próprio lock.
-        run: terraform apply -input=false -auto-approve -lock-timeout=10m -var-file=environments/prod.tfvars
+        run: terraform apply -input=false -auto-approve -lock-timeout=10m -parallelism=1 -var-file=environments/prod.tfvars
 
       - name: Capture Terraform outputs
         working-directory: ${{ env.TF_WORKING_DIR }}
