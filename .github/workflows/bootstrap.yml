@@ -9,7 +9,7 @@ name: bootstrap-aws
 #   2. O workflow só pode ser disparado MANUALMENTE (workflow_dispatch). Nunca configure
 #      trigger automático (push/schedule) para este workflow.
 #   3. Se você fornecer GH_ADMIN_PAT, o workflow configurará automaticamente TODOS os
-#      GitHub secrets/variables nos 5 repositórios FCG. Se não fornecer, os outputs
+#      GitHub secrets/variables nos 6 repositórios FCG. Se não fornecer, os outputs
 #      serão exibidos nos logs para configuração manual.
 #
 # SECRETS TEMPORÁRIOS NECESSÁRIOS (configurar antes de rodar, excluir depois):
@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       github_org:
-        description: "Organização ou usuário GitHub onde estão os 5 repos FCG"
+        description: "Organização ou usuário GitHub onde estão os 6 repos FCG"
         required: true
         type: string
       dockerhub_user:
@@ -116,7 +116,8 @@ jobs:
             "Fase4-FCG-UsersAPI",
             "Fase4-FCG-CatalogAPI",
             "Fase4-FCG-PaymentsAPI",
-            "Fase4-FCG-NotificationsAPI"
+            "Fase4-FCG-NotificationsAPI",
+            "Fase4-FCG-Frontend"
           ]
           EOF
           echo "prod.tfvars gerado para org: ${{ inputs.github_org }}"
@@ -249,7 +250,7 @@ jobs:
           # ---------------------------------------------------------------
           # APIs (repo-level)
           # ---------------------------------------------------------------
-          APIS=("Fase4-FCG-UsersAPI" "Fase4-FCG-CatalogAPI" "Fase4-FCG-PaymentsAPI" "Fase4-FCG-NotificationsAPI")
+          APIS=("Fase4-FCG-UsersAPI" "Fase4-FCG-CatalogAPI" "Fase4-FCG-PaymentsAPI" "Fase4-FCG-NotificationsAPI" "Fase4-FCG-Frontend")
           for r in "${APIS[@]}"; do
             echo ""
             echo "=== ${r} ==="
@@ -312,7 +313,7 @@ jobs:
           echo "  gh variable set TF_LOCK_TABLE --body \"\$LOCK\" --repo \"\$ORG/Fase4-FCG-Orchestrator\""
           echo ""
           echo "  # Para cada API:"
-          echo "  foreach (\$r in @('Fase4-FCG-UsersAPI','Fase4-FCG-CatalogAPI','Fase4-FCG-PaymentsAPI','Fase4-FCG-NotificationsAPI')) {"
+          echo "  foreach (\$r in @('Fase4-FCG-UsersAPI','Fase4-FCG-CatalogAPI','Fase4-FCG-PaymentsAPI','Fase4-FCG-NotificationsAPI','Fase4-FCG-Frontend')) {"
           echo "    gh secret set AWS_GITHUB_ROLE_ARN --body \"\$ROLE\" --repo \"\$ORG/\$r\""
           echo "    gh variable set GITOPS_REPOSITORY --body \"\$ORG/Fase4-FCG-Orchestrator\" --repo \"\$ORG/\$r\""
           echo "  }"

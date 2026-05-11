@@ -5,11 +5,12 @@ Este repositório é o **centro da plataforma FCG na Fase 4**. Contém:
 - **Gateway YARP** (`src/Gateway.Api/`) — entrypoint HTTP único
 - **Manifestos Kubernetes locais** (`k8s/`) — para Docker Desktop / cluster de dev
 - **Plataforma AWS Fase 4**: Terraform (`infra/`), Helm chart `fcg-platform` (`deploy/helm/`), GitOps Argo CD (`gitops/`), scripts de bootstrap e smoke-test (`scripts/`)
-- **Pipelines GitHub Actions** (`.github/workflows/`) — `terraform-aws.yml` e `gateway-api-ci-cd.yml`
+- **Pipelines GitHub Actions** (`.github/workflows/`) — `terraform-aws.yml` e `gateway-api-ci-cd.yml`; o frontend tem pipeline própria no repo `Fase4-FCG-Frontend`
 
 > **Branch alvo das pipelines:** `master`.
 > **Registries:** AWS ECR (privado, exigido pelo Tech Challenge) **e** Docker Hub (público, paralelo).
-> **Repositórios padronizados:** `Fase4-FCG-Orchestrator`, `Fase4-FCG-UsersAPI`, `Fase4-FCG-CatalogAPI`, `Fase4-FCG-PaymentsAPI`, `Fase4-FCG-NotificationsAPI`.
+> **Repositórios padronizados:** `Fase4-FCG-Orchestrator`, `Fase4-FCG-UsersAPI`, `Fase4-FCG-CatalogAPI`, `Fase4-FCG-PaymentsAPI`, `Fase4-FCG-NotificationsAPI`, `Fase4-FCG-Frontend`.
+> **Perfil Free Tier:** um único EKS com até **2 nós `m7i-flex.large`**, um ALB compartilhado, RDS consolidado, OpenSearch single-node e frontend servido na raiz `/`.
 
 ## ⚠️ Antes de qualquer deploy automático leia, nesta ordem:
 
@@ -29,8 +30,8 @@ Este repositório é o **centro da plataforma FCG na Fase 4**. Contém:
 | # | Tarefa | Onde | Doc |
 |---|--------|------|-----|
 | 1 | Criar usuário IAM `fcg-bootstrap-admin` + Access Key (selecionar "Outros") | AWS Console | BOOTSTRAP.md |
-| 2 | Criar 5 repos GitHub `Fase4-FCG-*` com **branch padrão `master`** | github.com | MANUAL-STEPS §1 |
-| 3 | Criar 5 repos Docker Hub `<user>/fcg-*-api` + gerar PAT Read/Write | hub.docker.com | MANUAL-STEPS §2 |
+| 2 | Criar 6 repos GitHub `Fase4-FCG-*` com **branch padrão `master`** | github.com | MANUAL-STEPS §1 |
+| 3 | Criar repos Docker Hub dos serviços que ainda publicam imagem pública + gerar PAT Read/Write | hub.docker.com | MANUAL-STEPS §2 |
 | 4 | Criar **GitHub App `FCG GitOps`** + baixar `.pem` | github.com | SECURITY-SETUP.md §1 |
 | 5 | Configurar secrets temporários + disparar workflow `bootstrap-aws` | GitHub Actions | BOOTSTRAP.md §Caminho A |
 | 6 | **Excluir** Access Key e secrets de bootstrap do GitHub e da AWS | AWS + GitHub | BOOTSTRAP.md §Passo 6 |
@@ -53,7 +54,7 @@ Fase4-FCG-Orchestrator/
 ├── .github/workflows/       # terraform-aws.yml + gateway-api-ci-cd.yml (push em master)
 ├── infra/
 │   ├── terraform/bootstrap/ # OIDC, IAM role GitHub Actions, S3 state, DynamoDB lock
-│   └── terraform/aws/       # EKS, ECR (5 repos), RDSx2, MQ, Redis, OpenSearch, DynamoDB
+│   └── terraform/aws/       # EKS, ECR (6 repos), RDS consolidado, MQ, Redis, OpenSearch, DynamoDB
 ├── deploy/helm/fcg-platform/ # Chart Helm de produção (Argo CD)
 ├── gitops/argocd/           # AppProject + Application (targetRevision: master)
 ├── scripts/                 # render-values.sh + smoke-test.ps1 (ALB)
@@ -164,10 +165,16 @@ cd ..\Fase4-FCG-NotificationsAPI\src
 docker build -t notifications-worker:1 -f Dockerfile .
 ```
 
+#### Frontend
+```powershell
+cd ..\Fase4-FCG-Frontend
+docker build -t frontend-web:latest -f Dockerfile .
+```
+
 ### Verificar Imagens Construídas
 
 ```powershell
-docker images | findstr "usersapi catalogapi payments notifications"
+docker images | findstr "usersapi catalogapi payments notifications frontend"
 ```
 
 ## Fluxo Completo

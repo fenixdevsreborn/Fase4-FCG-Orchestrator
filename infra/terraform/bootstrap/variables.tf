@@ -29,7 +29,8 @@ variable "github_repos" {
     "Fase4-FCG-UsersAPI",
     "Fase4-FCG-CatalogAPI",
     "Fase4-FCG-PaymentsAPI",
-    "Fase4-FCG-NotificationsAPI"
+    "Fase4-FCG-NotificationsAPI",
+    "Fase4-FCG-Frontend"
   ]
 }
 

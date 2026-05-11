@@ -25,7 +25,7 @@ variable "platform_namespace" {
 variable "cluster_version" {
   type        = string
   description = "EKS cluster version."
-  default     = "1.32"
+  default     = "1.34"
 }
 
 variable "vpc_cidr" {
@@ -47,7 +47,7 @@ variable "private_subnet_cidrs" {
 variable "node_instance_types" {
   type        = list(string)
   description = "EKS managed node group instance types."
-  default     = ["t3.medium"]
+  default     = ["m7i-flex.large"]
 }
 
 variable "node_group_min_size" {
@@ -65,13 +65,13 @@ variable "node_group_desired_size" {
 variable "node_group_max_size" {
   type        = number
   description = "Maximum number of worker nodes."
-  default     = 4
+  default     = 2
 }
 
 variable "db_instance_class" {
   type        = string
   description = "RDS instance class."
-  default     = "db.t4g.micro"
+  default     = "db.t3.micro"
 }
 
 variable "mq_instance_type" {
@@ -83,7 +83,7 @@ variable "mq_instance_type" {
 variable "redis_node_type" {
   type        = string
   description = "ElastiCache node type."
-  default     = "cache.t4g.micro"
+  default     = "cache.t3.micro"
 }
 
 variable "opensearch_instance_type" {
@@ -108,6 +108,7 @@ variable "ecr_repositories" {
   type        = list(string)
   description = "Private ECR repositories to create."
   default = [
+    "frontend-web",
     "gateway-api",
     "users-api",
     "catalog-api",

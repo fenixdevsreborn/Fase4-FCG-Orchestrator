@@ -86,7 +86,7 @@ app.UseSwaggerUI(options =>
     // Notifications API Swagger (served locally by SwaggerController)
     options.SwaggerEndpoint("/swagger/notifications/v1/swagger.json", "Notifications API v1");
     
-    options.RoutePrefix = string.Empty; // Swagger na raiz (/)
+    options.RoutePrefix = "docs"; // Frontend usa a raiz (/); Swagger fica em /docs
     
     // Configurações para melhorar a experiência do Swagger UI
     options.EnableDeepLinking(); // Permite links diretos para endpoints

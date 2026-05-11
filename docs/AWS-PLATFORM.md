@@ -7,7 +7,7 @@ A entrega cloud-native da FCG (Fase 4) vive **neste** repositório (`Fase2-Orche
 | Caminho | Uso |
 |---------|-----|
 | `infra/terraform/bootstrap` | OIDC GitHub→AWS, IAM role, state backend (S3+DynamoDB) — `terraform apply` único, local |
-| `infra/terraform/aws` | VPC, EKS, ECR, RDS, MQ, Redis, OpenSearch, DynamoDB, Secrets Manager — aplicado pelo CI |
+| `infra/terraform/aws` | VPC, EKS, ECR, RDS consolidado, MQ, Redis, OpenSearch, DynamoDB, Secrets Manager — aplicado pelo CI |
 | `deploy/helm/fcg-platform` | Chart Helm consumido pelo Argo CD |
 | `gitops/argocd` | `AppProject` e `Application` |
 | `scripts/render-values.sh` | Substitui placeholders em `values-prod.yaml` a partir dos outputs do Terraform |
@@ -29,7 +29,7 @@ A entrega cloud-native da FCG (Fase 4) vive **neste** repositório (`Fase2-Orche
                                                           ↓
                                                   [commit em master]
                                                           ↓
-[push master em qualquer API]  →  [build+push ECR + atualiza values-prod.yaml]
+[push master em qualquer API/Frontend]  →  [build+push ECR + atualiza values-prod.yaml]
                                                           ↓
                                               [Argo CD detecta mudança]
                                                           ↓
@@ -43,6 +43,14 @@ Os workflows das APIs já operam em modo estrito (`exit-code: "1"`, `severity: C
 ## Portas Gateway ↔ Helm
 
 O chart define `payments-api-service` e `notifications-api-service` com **porta 80** → `targetPort: 8080`. O `appsettings.json` do Gateway em produção usa `:80` nesses destinos (já alinhado).
+
+## Perfil Free Tier
+
+- EKS usa no máximo **2 nós `m7i-flex.large`**.
+- O frontend Nuxt roda como `frontend-web` e atende a raiz `/`.
+- O Gateway atende `/api`, `/swagger`, `/docs` e `/health`.
+- Um único ALB é compartilhado por frontend e gateway via annotation `alb.ingress.kubernetes.io/group.name: fcg-platform`.
+- O RDS é consolidado em uma instância `db.t3.micro`; um Job Kubernetes cria os databases lógicos de UsersAPI e CatalogAPI.
 
 ## Smoke test
 

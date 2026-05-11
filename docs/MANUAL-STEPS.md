@@ -15,7 +15,7 @@ Este checklist cobre **tudo o que NÃO é automatizado** pelas pipelines. Após 
 ### Pré-requisitos (antes do bootstrap)
 - [ ] **Usuário IAM `fcg-bootstrap-admin`** criado com `AdministratorAccess` e **Access Key** gerada (selecionar "Outros" na tela de criação) — [BOOTSTRAP.md](BOOTSTRAP.md)
 - [ ] **Conta Docker Hub** + Personal Access Token (PAT Read & Write)
-- [ ] **5 repositórios GitHub** criados com branch padrão = `master`
+- [ ] **6 repositórios GitHub** criados com branch padrão = `master`
 - [ ] **5 repositórios Docker Hub** criados (`<user>/fcg-*-api`)
 - [ ] **GitHub App `FCG GitOps`** criado e `.pem` baixado — [SECURITY-SETUP.md §1](SECURITY-SETUP.md)
 
@@ -28,24 +28,24 @@ Este checklist cobre **tudo o que NÃO é automatizado** pelas pipelines. Após 
 
 ### Configuração de secrets (uma vez)
 - [ ] **GitHub Org Secrets** (se organização) OU **Doppler** (se conta pessoal) — [SECRETS-MANAGEMENT.md](SECRETS-MANAGEMENT.md)
-- [ ] **GitHub secrets/variables** nos 5 repositórios (se não usou auto-config do bootstrap)
+- [ ] **GitHub secrets/variables** nos 6 repositórios (se não usou auto-config do bootstrap)
 - [ ] **Editar `repoURL`** em `gitops/argocd/*.yaml` (ou confiar no render automático)
 
 ### Deploy inicial
 - [ ] **Push em `master` do Orchestrator** → dispara `terraform apply` da plataforma (EKS, ECR, RDS, etc.)
 - [ ] **Aprovar** no environment `prod` (se configurado)
-- [ ] **`workflow_dispatch`** uma vez em cada API para subir primeiras imagens no ECR/Docker Hub
+- [ ] **`workflow_dispatch`** uma vez em cada API e no Frontend para subir primeiras imagens no ECR/Docker Hub
 - [ ] **`kubectl apply -f gitops/argocd/`** no cluster para registrar Argo CD Application
 
 ### Pós-setup (segurança)
-- [ ] **Branch protection** em `master` nos 5 repos — [SECURITY-SETUP.md §2](SECURITY-SETUP.md)
+- [ ] **Branch protection** em `master` nos 6 repos — [SECURITY-SETUP.md §2](SECURITY-SETUP.md)
 - [ ] **Dependabot + secret scanning** — [SECURITY-SETUP.md §3](SECURITY-SETUP.md)
 
 ---
 
 ## 1) Repositórios GitHub obrigatórios
 
-Crie os 5 repositórios na sua organização GitHub com branch padrão = `master`:
+Crie os 6 repositórios na sua organização GitHub com branch padrão = `master`:
 
 > URL direta para criar: `https://github.com/new`
 > Após criar: **Settings → Default branch → master** (se criou com `main`)
@@ -57,6 +57,7 @@ Crie os 5 repositórios na sua organização GitHub com branch padrão = `master
 | `Fase4-FCG-CatalogAPI` | `master` | Privado |
 | `Fase4-FCG-PaymentsAPI` | `master` | Privado |
 | `Fase4-FCG-NotificationsAPI` | `master` | Privado |
+| `Fase4-FCG-Frontend` | `master` | Privado |
 
 > **Atenção:** se você criou os repos com branch padrão `main`, troque para `master` em **Settings → Branches → Default branch**, ou as pipelines não disparam.
 
@@ -197,7 +198,7 @@ gh variable set TF_LOCK_TABLE       --body "$LOCK"     --repo "$ORG/Fase4-FCG-Or
 gh variable set GITOPS_REPO_URL     --body "https://github.com/$ORG/Fase4-FCG-Orchestrator.git" --repo "$ORG/Fase4-FCG-Orchestrator"
 
 # --- APIs (usam GitHub App para GitOps write) ---
-$APIS = @("Fase4-FCG-UsersAPI","Fase4-FCG-CatalogAPI","Fase4-FCG-PaymentsAPI","Fase4-FCG-NotificationsAPI")
+$APIS = @("Fase4-FCG-UsersAPI","Fase4-FCG-CatalogAPI","Fase4-FCG-PaymentsAPI","Fase4-FCG-NotificationsAPI","Fase4-FCG-Frontend")
 foreach ($r in $APIS) {
   gh secret   set AWS_GITHUB_ROLE_ARN    --body "$ROLE"     --repo "$ORG/$r"
   gh secret   set DOCKERHUB_USERNAME     --body "$DH_USER"  --repo "$ORG/$r"
@@ -255,7 +256,7 @@ A pipeline `terraform-aws.yml` irá:
 
 ## 7) Disparar primeira imagem em cada API
 
-Cada API precisa rodar a pipeline pelo menos uma vez para popular ECR + Docker Hub.
+Cada API e o Frontend precisam rodar a pipeline pelo menos uma vez para popular ECR.
 
 > URL direta para disparar: `https://github.com/<sua-org>/<repo>/actions`
 > Clique no workflow → **Run workflow** → Branch: `master` → **Run workflow**
@@ -268,6 +269,7 @@ gh workflow run "users-api-ci-cd.yml"         --repo "$ORG/Fase4-FCG-UsersAPI"  
 gh workflow run "catalog-api-ci-cd.yml"       --repo "$ORG/Fase4-FCG-CatalogAPI"       --ref master
 gh workflow run "payments-api-ci-cd.yml"      --repo "$ORG/Fase4-FCG-PaymentsAPI"      --ref master
 gh workflow run "notifications-api-ci-cd.yml" --repo "$ORG/Fase4-FCG-NotificationsAPI" --ref master
+gh workflow run "frontend-ci-cd.yml" --repo "$ORG/Fase4-FCG-Frontend" --ref master
 ```
 
 > **Próxima etapa →** [8) Registrar Argo CD no cluster](#8-conectar-argo-cd-ao-cluster)
@@ -301,7 +303,7 @@ kubectl -n argocd get application fcg-platform
 |------|---------|-----|-----------|
 | Criar usuário IAM + Access Key | Necessário para bootstrap | [BOOTSTRAP.md](BOOTSTRAP.md) | 1x |
 | Bootstrap AWS via `bootstrap-aws` workflow | Chicken/egg — cria o OIDC | [BOOTSTRAP.md](BOOTSTRAP.md) | 1x |
-| Criação dos 5 repos GitHub | Fora do escopo Terraform | — | 1x |
+| Criação dos 6 repos GitHub | Fora do escopo Terraform | — | 1x |
 | Criação dos 5 repos Docker Hub | Docker Hub não tem API Terraform | — | 1x |
 | Criação do GitHub App `FCG GitOps` + `.pem` | Credencial de App | [SECURITY-SETUP.md §1](SECURITY-SETUP.md#1-github-app-para-gitops-substitui-pat) | 1x |
 | Geração de `DOCKERHUB_TOKEN` (PAT) | Docker Hub não tem OIDC | [hub.docker.com/settings/security](https://hub.docker.com/settings/security) | Rotação 90 dias |

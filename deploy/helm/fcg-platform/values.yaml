@@ -8,11 +8,110 @@ global:
     serviceAccountRef:
       name: external-secrets
       namespace: external-secrets
+  externalSecrets:
+    - name: postgres-bootstrap-secrets
+      refreshInterval: 1h
+      data:
+        - secretKey: POSTGRES_HOST
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: POSTGRES_HOST
+        - secretKey: POSTGRES_PORT
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: POSTGRES_PORT
+        - secretKey: POSTGRES_ADMIN_DATABASE
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: POSTGRES_ADMIN_DATABASE
+        - secretKey: POSTGRES_ADMIN_USERNAME
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: POSTGRES_ADMIN_USERNAME
+        - secretKey: POSTGRES_ADMIN_PASSWORD
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: POSTGRES_ADMIN_PASSWORD
+        - secretKey: USERS_DATABASE
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: USERS_DATABASE
+        - secretKey: USERS_USERNAME
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: USERS_USERNAME
+        - secretKey: USERS_PASSWORD
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: USERS_PASSWORD
+        - secretKey: CATALOG_DATABASE
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: CATALOG_DATABASE
+        - secretKey: CATALOG_USERNAME
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: CATALOG_USERNAME
+        - secretKey: CATALOG_PASSWORD
+          remoteRef:
+            key: fcg/prod/postgres-bootstrap
+            property: CATALOG_PASSWORD
+  postgresInit:
+    enabled: true
+    image: postgres:16-alpine
+    secretName: postgres-bootstrap-secrets
 
 services:
+  frontend-web:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: frontend-web
+      tag: latest
+    containerPort: 80
+    service:
+      enabled: true
+      name: frontend-web-service
+      port: 80
+      targetPort: 80
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 150m
+        memory: 128Mi
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 80
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 80
+      initialDelaySeconds: 20
+      periodSeconds: 30
+    ingress:
+      enabled: true
+      className: alb
+      annotations:
+        alb.ingress.kubernetes.io/group.name: fcg-platform
+        alb.ingress.kubernetes.io/group.order: "20"
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/healthcheck-path: /health
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      hosts:
+        - host: ""
+          paths:
+            - path: /
+              pathType: Prefix
+
   gateway:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     image:
       repository: gateway-api
       tag: latest
@@ -31,11 +130,11 @@ services:
       Services__AuthService: http://users-api
     resources:
       requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
         cpu: 250m
         memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
     readinessProbe:
       httpGet:
         path: /health
@@ -52,6 +151,8 @@ services:
       enabled: true
       className: alb
       annotations:
+        alb.ingress.kubernetes.io/group.name: fcg-platform
+        alb.ingress.kubernetes.io/group.order: "10"
         alb.ingress.kubernetes.io/scheme: internet-facing
         alb.ingress.kubernetes.io/target-type: ip
         alb.ingress.kubernetes.io/healthcheck-path: /health
@@ -59,17 +160,23 @@ services:
       hosts:
         - host: ""
           paths:
-            - path: /
+            - path: /api
+              pathType: Prefix
+            - path: /swagger
+              pathType: Prefix
+            - path: /docs
+              pathType: Prefix
+            - path: /health
               pathType: Prefix
     autoscaling:
-      enabled: true
-      minReplicas: 2
-      maxReplicas: 4
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 2
       targetCPUUtilizationPercentage: 70
 
   users-api:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     image:
       repository: users-api
       tag: latest
@@ -90,11 +197,11 @@ services:
       - users-api-secrets
     resources:
       requests:
-        cpu: 250m
-        memory: 256Mi
+        cpu: 100m
+        memory: 192Mi
       limits:
-        cpu: 500m
-        memory: 512Mi
+        cpu: 300m
+        memory: 384Mi
     readinessProbe:
       httpGet:
         path: /health
@@ -108,9 +215,9 @@ services:
       initialDelaySeconds: 45
       periodSeconds: 30
     autoscaling:
-      enabled: true
-      minReplicas: 2
-      maxReplicas: 4
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 2
       targetCPUUtilizationPercentage: 70
     externalSecrets:
       - name: users-api-secrets
@@ -139,7 +246,7 @@ services:
 
   catalog-api:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     image:
       repository: catalog-api
       tag: latest
@@ -166,11 +273,11 @@ services:
       - catalog-api-secrets
     resources:
       requests:
+        cpu: 150m
+        memory: 256Mi
+      limits:
         cpu: 500m
         memory: 512Mi
-      limits:
-        cpu: 1000m
-        memory: 1Gi
     readinessProbe:
       httpGet:
         path: /health
@@ -184,9 +291,9 @@ services:
       initialDelaySeconds: 60
       periodSeconds: 30
     autoscaling:
-      enabled: true
-      minReplicas: 2
-      maxReplicas: 6
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 2
       targetCPUUtilizationPercentage: 70
     externalSecrets:
       - name: catalog-api-secrets
@@ -258,11 +365,11 @@ services:
       - payments-api-secrets
     resources:
       requests:
+        cpu: 75m
+        memory: 128Mi
+      limits:
         cpu: 250m
         memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
     readinessProbe:
       httpGet:
         path: /health
@@ -312,11 +419,11 @@ services:
       - notifications-api-secrets
     resources:
       requests:
+        cpu: 75m
+        memory: 128Mi
+      limits:
         cpu: 250m
         memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
     readinessProbe:
       httpGet:
         path: /health

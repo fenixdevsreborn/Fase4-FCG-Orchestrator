@@ -76,7 +76,7 @@ O workflow irá:
 1. Configurar credenciais AWS temporárias
 2. Executar `terraform init` + `terraform apply` no `infra/terraform/bootstrap/`
 3. Capturar e exibir os outputs nos logs
-4. Se `auto_configure_secrets = true`: configurar automaticamente secrets/variables nos 5 repos
+4. Se `auto_configure_secrets = true`: configurar automaticamente secrets/variables nos 6 repos
 5. Exibir instruções de limpeza
 
 ### Passo 4 — Anotar os outputs
@@ -225,7 +225,7 @@ aws dynamodb describe-table --table-name fcg-prod-tfstate-lock
 |---|---|---|
 | **→ Agora** | Criar o GitHub App `FCG GitOps` + baixar `.pem` | [SECURITY-SETUP.md §1](SECURITY-SETUP.md#1-github-app-para-gitops-substitui-pat) |
 | Depois | Decidir estratégia de secrets (GitHub Org ou Doppler) | [SECRETS-MANAGEMENT.md](SECRETS-MANAGEMENT.md) |
-| Depois | Configurar secrets/variables nos 5 repos | [MANUAL-STEPS.md §4](MANUAL-STEPS.md#4-configurar-github-secretsvariables) |
+| Depois | Configurar secrets/variables nos 6 repos | [MANUAL-STEPS.md §4](MANUAL-STEPS.md#4-configurar-github-secretsvariables) |
 | Depois | Disparar deploy da plataforma | [MANUAL-STEPS.md §6](MANUAL-STEPS.md#6-push-em-master-do-orchestrator-a-partir-daqui-é-automático) |
 | Depois | Fluxo automático completo | [DEPLOY-AUTOMATIC.md](DEPLOY-AUTOMATIC.md) |
 

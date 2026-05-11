@@ -13,13 +13,17 @@ on:
   pull_request:
     paths:
       - "infra/terraform/aws/**"
-      - "deploy/helm/fcg-platform/**"
+      - "deploy/helm/fcg-platform/Chart.yaml"
+      - "deploy/helm/fcg-platform/values.yaml"
+      - "deploy/helm/fcg-platform/templates/**"
       - ".github/workflows/terraform-aws.yml"
   push:
     branches: [master]
     paths:
       - "infra/terraform/aws/**"
-      - "deploy/helm/fcg-platform/**"
+      - "deploy/helm/fcg-platform/Chart.yaml"
+      - "deploy/helm/fcg-platform/values.yaml"
+      - "deploy/helm/fcg-platform/templates/**"
       - ".github/workflows/terraform-aws.yml"
   workflow_dispatch:
 

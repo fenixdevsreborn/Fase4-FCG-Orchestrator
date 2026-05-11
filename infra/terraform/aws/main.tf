@@ -25,18 +25,23 @@ locals {
     }
   }
 
+  postgres_admin = {
+    db_name  = "fcg_platform"
+    username = "fcgadmin"
+  }
+
   rabbitmq_host = replace(replace(aws_mq_broker.rabbitmq.instances[0].endpoints[0], "amqps://", ""), ":5671", "")
 
   secret_payloads = {
     "users-api" = {
-      ConnectionStrings__DefaultConnection = "Host=${aws_db_instance.postgres["users"].address};Port=${aws_db_instance.postgres["users"].port};Database=${local.postgres.users.db_name};Username=${local.postgres.users.username};Password=${random_password.postgres["users"].result}"
+      ConnectionStrings__DefaultConnection = "Host=${aws_db_instance.postgres.address};Port=${aws_db_instance.postgres.port};Database=${local.postgres.users.db_name};Username=${local.postgres.users.username};Password=${random_password.postgres["users"].result}"
       RabbitMQ__Host                       = local.rabbitmq_host
       RabbitMQ__Username                   = var.mq_username
       RabbitMQ__Password                   = random_password.rabbitmq.result
       Jwt__Key                             = random_password.users_jwt.result
     }
     "catalog-api" = {
-      ConnectionStrings__CatalogDatabase = "Host=${aws_db_instance.postgres["catalog"].address};Port=${aws_db_instance.postgres["catalog"].port};Database=${local.postgres.catalog.db_name};Username=${local.postgres.catalog.username};Password=${random_password.postgres["catalog"].result}"
+      ConnectionStrings__CatalogDatabase = "Host=${aws_db_instance.postgres.address};Port=${aws_db_instance.postgres.port};Database=${local.postgres.catalog.db_name};Username=${local.postgres.catalog.username};Password=${random_password.postgres["catalog"].result}"
       RabbitMQ__Host                     = local.rabbitmq_host
       RabbitMQ__Username                 = var.mq_username
       RabbitMQ__Password                 = random_password.rabbitmq.result
@@ -58,6 +63,19 @@ locals {
       RABBITMQ_USERNAME = var.mq_username
       RABBITMQ_PASSWORD = random_password.rabbitmq.result
     }
+    "postgres-bootstrap" = {
+      POSTGRES_HOST           = aws_db_instance.postgres.address
+      POSTGRES_PORT           = tostring(aws_db_instance.postgres.port)
+      POSTGRES_ADMIN_DATABASE = local.postgres_admin.db_name
+      POSTGRES_ADMIN_USERNAME = local.postgres_admin.username
+      POSTGRES_ADMIN_PASSWORD = random_password.postgres_admin.result
+      USERS_DATABASE          = local.postgres.users.db_name
+      USERS_USERNAME          = local.postgres.users.username
+      USERS_PASSWORD          = random_password.postgres["users"].result
+      CATALOG_DATABASE        = local.postgres.catalog.db_name
+      CATALOG_USERNAME        = local.postgres.catalog.username
+      CATALOG_PASSWORD        = random_password.postgres["catalog"].result
+    }
   }
 }
 
@@ -72,8 +90,9 @@ module "vpc" {
   public_subnets  = var.public_subnet_cidrs
   private_subnets = var.private_subnet_cidrs
 
-  enable_nat_gateway = true
-  single_nat_gateway = true
+  enable_nat_gateway      = false
+  single_nat_gateway      = false
+  map_public_ip_on_launch = true
 
   public_subnet_tags = {
     "kubernetes.io/role/elb" = "1"
@@ -94,7 +113,7 @@ module "eks" {
   cluster_version = var.cluster_version
 
   vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
+  subnet_ids = module.vpc.public_subnets
 
   cluster_endpoint_public_access = true
   enable_irsa                    = true
@@ -123,7 +142,8 @@ module "eks" {
       min_size       = var.node_group_min_size
       desired_size   = var.node_group_desired_size
       max_size       = var.node_group_max_size
-      capacity_type  = "SPOT"
+      capacity_type  = "ON_DEMAND"
+      disk_size      = 20
     }
   }
 
@@ -143,8 +163,8 @@ module "eks_blueprints_addons" {
   enable_external_secrets             = true
   enable_metrics_server               = true
   enable_argocd                       = true
-  enable_aws_for_fluentbit            = true
-  enable_aws_cloudwatch_metrics       = true
+  enable_aws_for_fluentbit            = false
+  enable_aws_cloudwatch_metrics       = false
 
   argocd = {
     namespace = "argocd"
@@ -200,6 +220,11 @@ resource "random_password" "postgres" {
   special = false
 }
 
+resource "random_password" "postgres_admin" {
+  length  = 24
+  special = false
+}
+
 resource "random_password" "rabbitmq" {
   length  = 24
   special = false
@@ -230,18 +255,15 @@ resource "aws_db_subnet_group" "postgres" {
 }
 
 resource "aws_db_instance" "postgres" {
-  for_each = local.postgres
-
-  identifier             = "${local.name}-${each.key}-postgres"
-  db_name                = each.value.db_name
+  identifier             = "${local.name}-postgres"
+  db_name                = local.postgres_admin.db_name
   engine                 = "postgres"
   engine_version         = "16.3"
   instance_class         = var.db_instance_class
   allocated_storage      = 20
-  max_allocated_storage  = 100
   storage_encrypted      = true
-  username               = each.value.username
-  password               = random_password.postgres[each.key].result
+  username               = local.postgres_admin.username
+  password               = random_password.postgres_admin.result
   db_subnet_group_name   = aws_db_subnet_group.postgres.name
   vpc_security_group_ids = [aws_security_group.data_services.id]
   skip_final_snapshot    = true
@@ -302,17 +324,13 @@ resource "aws_opensearch_domain" "catalog" {
 
   cluster_config {
     instance_type          = var.opensearch_instance_type
-    instance_count         = 2
-    zone_awareness_enabled = true
-
-    zone_awareness_config {
-      availability_zone_count = 2
-    }
+    instance_count         = 1
+    zone_awareness_enabled = false
   }
 
   ebs_options {
     ebs_enabled = true
-    volume_size = 20
+    volume_size = 10
     volume_type = "gp3"
   }
 
@@ -340,7 +358,7 @@ resource "aws_opensearch_domain" "catalog" {
   }
 
   vpc_options {
-    subnet_ids         = slice(module.vpc.private_subnets, 0, 2)
+    subnet_ids         = [module.vpc.private_subnets[0]]
     security_group_ids = [aws_security_group.data_services.id]
   }
 
@@ -348,9 +366,11 @@ resource "aws_opensearch_domain" "catalog" {
 }
 
 resource "aws_dynamodb_table" "catalog_metadata" {
-  name         = "${local.name}-catalog-metadata"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "GameId"
+  name           = "${local.name}-catalog-metadata"
+  billing_mode   = "PROVISIONED"
+  hash_key       = "GameId"
+  read_capacity  = 5
+  write_capacity = 5
 
   attribute {
     name = "GameId"

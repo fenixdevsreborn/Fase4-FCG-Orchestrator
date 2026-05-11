@@ -163,7 +163,7 @@ jobs:
       - name: Passo 2/4 — Esvaziar repositórios ECR
         run: |
           echo "Esvaziando repositórios ECR (necessário antes do terraform destroy)..."
-          SERVICES=("gateway-api" "users-api" "catalog-api" "payments-api" "notifications-api")
+          SERVICES=("frontend-web" "gateway-api" "users-api" "catalog-api" "payments-api" "notifications-api")
 
           for svc in "${SERVICES[@]}"; do
             echo "--- ${svc} ---"

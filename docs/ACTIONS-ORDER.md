@@ -15,6 +15,7 @@ Guia de referência para a ordem correta de execução de todos os workflows CI/
 | 04b | CatalogAPI | `catalog-api-ci-cd` | Push em `master` ou manual | Build + test + push → ECR + Docker Hub → atualiza values-prod.yaml |
 | 04c | PaymentsAPI | `payments-api-ci-cd` | Push em `master` ou manual | Build + push → ECR + Docker Hub → atualiza values-prod.yaml |
 | 04d | NotificationsAPI | `notifications-api-ci-cd` | Push em `master` ou manual | Build + test + push → ECR + Docker Hub → atualiza values-prod.yaml |
+| 04e | Frontend | `frontend-ci-cd` | Push em `master` ou manual | Build Nuxt + push → ECR → atualiza values-prod.yaml |
 | 05 | Orchestrator | `release` | Push em `master` (exclui docs e valores de CI) | Abre PR de release semântico (Conventional Commits) |
 | 06 | Orchestrator | `destroy-aws` | Manual (workflow_dispatch) | Destrói TODOS os recursos AWS em ordem segura |
 
@@ -65,7 +66,7 @@ Actions → Orchestrator → terraform-aws → Run workflow
 
 **O que cria (~25 min):**
 - EKS cluster `fcg-prod` (Kubernetes 1.32, Spot instances t3.small/t3.medium)
-- 5 repositórios ECR
+- 6 repositórios ECR
 - RDS PostgreSQL × 2 (users_db, catalogdb)
 - AWS MQ RabbitMQ (`mq.m5.large`)
 - ElastiCache Redis
@@ -132,7 +133,7 @@ Actions → Fase4-FCG-NotificationsAPI → notifications-api-ci-cd → Run workf
 - Build + testes
 - Push ECR `notifications-api` + Docker Hub `fcg-notifications-api`
 
-**Resultado após 04a-04d:** Argo CD detecta as mudanças em `values-prod.yaml` e faz rolling update de cada serviço automaticamente. Todos os pods ficam `Running`.
+**Resultado após 04a-04e:** Argo CD detecta as mudanças em `values-prod.yaml` e faz rolling update de cada serviço automaticamente. Todos os pods ficam `Running`.
 
 ---
 

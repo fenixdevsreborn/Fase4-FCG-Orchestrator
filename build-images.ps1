@@ -113,6 +113,14 @@ if (-not (Build-Image -ServiceName "5. GatewayAPI" -ImageName "gateway-api" -Ima
 }
 Write-Host ""
 
+# 6. Frontend
+$frontendContext = Join-Path $baseDir "Fase4-FCG-Frontend"
+$frontendDockerfile = Join-Path $frontendContext "Dockerfile"
+if (-not (Build-Image -ServiceName "6. Frontend" -ImageName "frontend-web" -ImageTag "latest" -DockerfilePath $frontendDockerfile -BuildContext $frontendContext)) {
+    $errors += "Frontend"
+}
+Write-Host ""
+
 # Resumo
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "Resumo" -ForegroundColor Cyan
@@ -128,9 +136,10 @@ if ($errors.Count -eq 0) {
     Write-Host "  - payments-api:latest" -ForegroundColor Gray
     Write-Host "  - notifications-worker:1" -ForegroundColor Gray
     Write-Host "  - gateway-api:latest" -ForegroundColor Gray
+    Write-Host "  - frontend-web:latest" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Para verificar as imagens:" -ForegroundColor Cyan
-    Write-Host "  docker images | findstr 'usersapi catalogapi payments notifications gateway'" -ForegroundColor Gray
+    Write-Host "  docker images | findstr 'usersapi catalogapi payments notifications gateway frontend'" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Agora voce pode executar o deploy:" -ForegroundColor Cyan
     Write-Host "  .\deploy.ps1" -ForegroundColor Gray

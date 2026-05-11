@@ -15,14 +15,16 @@ global:
       namespace: external-secrets
 
 services:
-  gateway:
+  frontend-web:
     image:
-      repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/gateway-api
-      tag: \"ff4fdee3491c\"
+      repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/frontend-web
+      tag: "initial"
     ingress:
       enabled: true
       className: alb
       annotations:
+        alb.ingress.kubernetes.io/group.name: fcg-platform
+        alb.ingress.kubernetes.io/group.order: "20"
         alb.ingress.kubernetes.io/scheme: internet-facing
         alb.ingress.kubernetes.io/target-type: ip
         alb.ingress.kubernetes.io/healthcheck-path: /health
@@ -33,15 +35,41 @@ services:
             - path: /
               pathType: Prefix
 
+  gateway:
+    image:
+      repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/gateway-api
+      tag: "ff4fdee3491c"
+    ingress:
+      enabled: true
+      className: alb
+      annotations:
+        alb.ingress.kubernetes.io/group.name: fcg-platform
+        alb.ingress.kubernetes.io/group.order: "10"
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/healthcheck-path: /health
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      hosts:
+        - host: ""
+          paths:
+            - path: /api
+              pathType: Prefix
+            - path: /swagger
+              pathType: Prefix
+            - path: /docs
+              pathType: Prefix
+            - path: /health
+              pathType: Prefix
+
   users-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/users-api
-      tag: \"626b191d432e\"
+      tag: "626b191d432e"
 
   catalog-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/catalog-api
-      tag: \"5715c785d9aa\"
+      tag: "5715c785d9aa"
     serviceAccount:
       create: true
       name: catalog-api
@@ -51,7 +79,7 @@ services:
   payments-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/payments-api
-      tag: \"b0613010a93b\"
+      tag: "b0613010a93b"
 
   notifications-api:
     image:

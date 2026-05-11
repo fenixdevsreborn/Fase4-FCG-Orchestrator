@@ -22,7 +22,7 @@ Outputs relevantes:
 
 | Output | Onde usar |
 |--------|-----------|
-| `github_actions_role_arn` | GitHub → Settings → Secrets → `AWS_GITHUB_ROLE_ARN` (em todos os 5 repos) |
+| `github_actions_role_arn` | GitHub → Settings → Secrets → `AWS_GITHUB_ROLE_ARN` (em todos os 6 repos) |
 | `tfstate_bucket` | GitHub → Settings → Variables → `TF_STATE_BUCKET` (Orchestrator) |
 | `tfstate_lock_table` | GitHub → Settings → Variables → `TF_LOCK_TABLE` (Orchestrator) |
 
