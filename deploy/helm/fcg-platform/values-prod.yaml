@@ -18,7 +18,7 @@ services:
   frontend-web:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/frontend-web
-      tag: "a6dfd35a81b9"
+      tag: "c6fefdf6a802"
     ingress:
       enabled: true
       className: alb
