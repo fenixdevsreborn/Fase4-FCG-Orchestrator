@@ -84,4 +84,4 @@ services:
   notifications-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/notifications-api
-      tag: "initial"
+      tag: \"138092d7c4cb\"
