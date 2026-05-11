@@ -34,6 +34,24 @@ terraform apply -var-file=environments/prod.tfvars
 
 Em produção, este `apply` é executado pelo workflow `.github/workflows/terraform-aws.yml` ao push em `master`.
 
+## Acesso ao EKS
+
+O cluster mantém acesso admin para o usuário `fcg-bootstrap-admin` e permite adicionar outros IAM users/roles via Access Entries.
+Para liberar seu usuário no console do EKS e no `kubectl`, inclua o ARN em `environments/prod.tfvars`:
+
+```hcl
+eks_admin_principal_arns = [
+  "arn:aws:iam::<ACCOUNT_ID>:user/<USER_NAME>"
+]
+```
+
+Depois aplique o stack:
+
+```powershell
+terraform plan -var-file=environments/prod.tfvars
+terraform apply -var-file=environments/prod.tfvars
+```
+
 ## Observações
 
 - `environments/prod.tfvars` contém apenas parâmetros não sensíveis.

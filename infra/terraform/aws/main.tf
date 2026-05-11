@@ -8,6 +8,11 @@ locals {
   name = "${var.project_name}-${var.environment}"
   azs  = slice(data.aws_availability_zones.available.names, 0, 2)
 
+  eks_admin_principal_arns = distinct(concat(
+    ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/fcg-bootstrap-admin"],
+    var.eks_admin_principal_arns
+  ))
+
   common_tags = merge(var.tags, {
     Project     = var.project_name
     Environment = var.environment
@@ -127,10 +132,10 @@ module "eks" {
   authentication_mode                      = "API_AND_CONFIG_MAP"
   enable_cluster_creator_admin_permissions = true
 
-  # Acesso ao cluster via console AWS e kubectl para o usuário fcg-bootstrap-admin
+  # Acesso ao cluster via console AWS e kubectl para usuários/roles administradores.
   access_entries = {
-    console_admin = {
-      principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/fcg-bootstrap-admin"
+    for principal_arn in local.eks_admin_principal_arns : principal_arn => {
+      principal_arn = principal_arn
       policy_associations = {
         admin = {
           policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"

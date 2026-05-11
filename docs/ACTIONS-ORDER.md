@@ -65,7 +65,7 @@ Actions → Orchestrator → terraform-aws → Run workflow
 3. `apply` — terraform apply + render values-prod.yaml + **registra Argo CD automaticamente**
 
 **O que cria (~25 min):**
-- EKS cluster `fcg-prod` (Kubernetes 1.34, até 2 nós `m7i-flex.large`)
+- EKS cluster `fcg-prod` (Kubernetes 1.35, até 2 nós `m7i-flex.large`)
 - 6 repositórios ECR
 - RDS PostgreSQL consolidado (`users_db` e `catalogdb` criados por Job Kubernetes)
 - Secrets do RabbitMQ interno; o broker roda no Helm chart como `rabbitmq-service:5672`

@@ -318,7 +318,14 @@ jobs:
             exit 0
           fi
           git commit -m "ci(terraform): render values-prod.yaml and Argo CD manifests"
-          git push
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase origin master
+            if git push origin HEAD:master; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
 
       # ----------------------------------------------------------------
       # Passo 03 — Registrar Argo CD Application no cluster (automatizado)

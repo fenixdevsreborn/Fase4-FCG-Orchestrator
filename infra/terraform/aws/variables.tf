@@ -25,7 +25,20 @@ variable "platform_namespace" {
 variable "cluster_version" {
   type        = string
   description = "EKS cluster version."
-  default     = "1.34"
+  default     = "1.35"
+}
+
+variable "eks_admin_principal_arns" {
+  type        = list(string)
+  description = "Additional IAM user or role ARNs that receive cluster-admin access through EKS Access Entries."
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.eks_admin_principal_arns : can(regex("^arn:aws:iam::[0-9]{12}:(user|role)/.+$", arn))
+    ])
+    error_message = "Use IAM user or role ARNs, for example arn:aws:iam::123456789012:user/name or arn:aws:iam::123456789012:role/name."
+  }
 }
 
 variable "vpc_cidr" {
