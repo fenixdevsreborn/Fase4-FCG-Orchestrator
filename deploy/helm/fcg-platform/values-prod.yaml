@@ -79,7 +79,7 @@ services:
   payments-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/payments-api
-      tag: "b0613010a93b"
+      tag: \"b0613010a93b\"
 
   notifications-api:
     image:
