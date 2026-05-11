@@ -38,7 +38,7 @@ services:
   gateway:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/gateway-api
-      tag: "ff4fdee3491c"
+      tag: "1a4f8ae778a7"
     ingress:
       enabled: true
       className: alb
