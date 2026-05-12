@@ -231,14 +231,12 @@ services:
         cpu: 300m
         memory: 384Mi
     readinessProbe:
-      httpGet:
-        path: /health
+      tcpSocket:
         port: 8080
       initialDelaySeconds: 15
       periodSeconds: 10
     livenessProbe:
-      httpGet:
-        path: /health
+      tcpSocket:
         port: 8080
       initialDelaySeconds: 45
       periodSeconds: 30
@@ -307,14 +305,12 @@ services:
         cpu: 500m
         memory: 512Mi
     readinessProbe:
-      httpGet:
-        path: /health
+      tcpSocket:
         port: 8080
       initialDelaySeconds: 20
       periodSeconds: 10
     livenessProbe:
-      httpGet:
-        path: /health
+      tcpSocket:
         port: 8080
       initialDelaySeconds: 60
       periodSeconds: 30
@@ -399,14 +395,12 @@ services:
         cpu: 250m
         memory: 256Mi
     readinessProbe:
-      httpGet:
-        path: /health
+      tcpSocket:
         port: 8080
       initialDelaySeconds: 15
       periodSeconds: 10
     livenessProbe:
-      httpGet:
-        path: /health
+      tcpSocket:
         port: 8080
       initialDelaySeconds: 45
       periodSeconds: 30
@@ -453,14 +447,12 @@ services:
         cpu: 250m
         memory: 256Mi
     readinessProbe:
-      httpGet:
-        path: /health
+      tcpSocket:
         port: 8080
       initialDelaySeconds: 15
       periodSeconds: 10
     livenessProbe:
-      httpGet:
-        path: /health
+      tcpSocket:
         port: 8080
       initialDelaySeconds: 45
       periodSeconds: 30
