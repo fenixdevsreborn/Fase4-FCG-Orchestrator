@@ -294,7 +294,7 @@ services:
       CatalogCache__DefaultTtlMinutes: "5"
       DynamoDb__Enabled: "true"
       OpenSearch__Enabled: "true"
-      AuthService__BaseUrl: http://users-api:8080
+      AuthService__BaseUrl: http://users-api-service:8080
     secretRefs:
       - catalog-api-secrets
     resources:
