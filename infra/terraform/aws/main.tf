@@ -370,6 +370,26 @@ resource "aws_opensearch_domain" "catalog" {
   tags = local.common_tags
 }
 
+data "aws_iam_policy_document" "catalog_opensearch_access" {
+  statement {
+    sid    = "AllowVpcHttpAccessWithFineGrainedAuth"
+    effect = "Allow"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions   = ["es:ESHttp*"]
+    resources = ["${aws_opensearch_domain.catalog.arn}/*"]
+  }
+}
+
+resource "aws_opensearch_domain_policy" "catalog" {
+  domain_name     = aws_opensearch_domain.catalog.domain_name
+  access_policies = data.aws_iam_policy_document.catalog_opensearch_access.json
+}
+
 resource "aws_dynamodb_table" "catalog_metadata" {
   name           = "${local.name}-catalog-metadata"
   billing_mode   = "PROVISIONED"
