@@ -69,7 +69,7 @@ services:
   catalog-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/catalog-api
-      tag: "b1bea01e7915"
+      tag: "1827409dd158"
     serviceAccount:
       create: true
       name: catalog-api
