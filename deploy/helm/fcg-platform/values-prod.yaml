@@ -11,7 +11,7 @@ global:
     kind: ClusterSecretStore
     region: us-east-1
     serviceAccountRef:
-      name: external-secrets
+      name: external-secrets-sa
       namespace: external-secrets
 
 services:
@@ -64,12 +64,12 @@ services:
   users-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/users-api
-      tag: \"945dfae66f87\"
+      tag: "945dfae66f87"
 
   catalog-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/catalog-api
-      tag: \"a3c4d8dd8d92\"
+      tag: "a3c4d8dd8d92"
     serviceAccount:
       create: true
       name: catalog-api
@@ -79,9 +79,9 @@ services:
   payments-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/payments-api
-      tag: \"401986045200\"
+      tag: "401986045200"
 
   notifications-api:
     image:
       repository: 682839842435.dkr.ecr.us-east-1.amazonaws.com/notifications-api
-      tag: \"138092d7c4cb\"
+      tag: "138092d7c4cb"

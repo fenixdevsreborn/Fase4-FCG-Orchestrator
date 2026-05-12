@@ -6,7 +6,7 @@ global:
     kind: ClusterSecretStore
     region: us-east-1
     serviceAccountRef:
-      name: external-secrets
+      name: external-secrets-sa
       namespace: external-secrets
   externalSecrets:
     - name: postgres-bootstrap-secrets
