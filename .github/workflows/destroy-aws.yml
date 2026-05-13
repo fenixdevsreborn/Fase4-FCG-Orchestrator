@@ -7,6 +7,7 @@ name: destroy-aws
 #   2. Imagens ECR (esvazia antes do terraform destroy)
 #   3. Plataforma AWS (EKS, RDS, Redis, OpenSearch, DynamoDB, VPC...)
 #   4. Bootstrap (OIDC, IAM role, S3 tfstate, DynamoDB lock) — OPCIONAL
+#      Usa credenciais admin temporárias, pois a role OIDC não deve destruir a si mesma.
 #
 # Recursos com custo relevante destruídos:
 #   EKS cluster + node group      ~$0.10/h + nodes
@@ -79,7 +80,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Configure AWS credentials (bootstrap session)
+      - name: Validar credenciais admin para destroy do bootstrap
+        if: inputs.destroy_bootstrap == true
+        env:
+          BOOTSTRAP_AWS_ACCESS_KEY_ID: ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          BOOTSTRAP_AWS_SECRET_ACCESS_KEY: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+        run: |
+          if [[ -z "${BOOTSTRAP_AWS_ACCESS_KEY_ID}" || -z "${BOOTSTRAP_AWS_SECRET_ACCESS_KEY}" ]]; then
+            echo "::error::destroy_bootstrap=true exige os secrets temporários BOOTSTRAP_AWS_ACCESS_KEY_ID e BOOTSTRAP_AWS_SECRET_ACCESS_KEY. Crie uma access key admin temporária, rode novamente e exclua a chave ao final."
+            exit 1
+          fi
+          echo "✅ Credenciais temporárias de bootstrap encontradas."
+
+      - name: Configure AWS credentials (OIDC session)
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: ${{ env.AWS_REGION }}
@@ -387,6 +400,21 @@ jobs:
       # ----------------------------------------------------------------
       # PASSO 4 (opcional) — Destruir bootstrap
       # ----------------------------------------------------------------
+      - name: Passo 4/4 — Reconfigurar AWS com credenciais admin temporárias
+        if: inputs.destroy_bootstrap == true
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          unset-current-credentials: true
+          aws-access-key-id: ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+
+      - name: Passo 4/4 — Verificar identidade admin do bootstrap
+        if: inputs.destroy_bootstrap == true
+        run: |
+          aws sts get-caller-identity
+          echo "✅ Sessão admin temporária ativa. A role OIDC agora pode ser removida com segurança."
+
       - name: Passo 4/4 — Esvaziar S3 tfstate (necessário para destruir bootstrap)
         if: inputs.destroy_bootstrap == true
         run: |

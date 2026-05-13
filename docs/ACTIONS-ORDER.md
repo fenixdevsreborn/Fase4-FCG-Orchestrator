@@ -169,12 +169,17 @@ confirmation:      DESTRUIR
 destroy_bootstrap: false   (mantenha false para poder recriar depois)
 ```
 
+> Se usar `destroy_bootstrap: true`, recrie temporariamente os secrets
+> `BOOTSTRAP_AWS_ACCESS_KEY_ID` e `BOOTSTRAP_AWS_SECRET_ACCESS_KEY` com uma access key admin.
+> Crie-os como repository secrets do Orchestrator ou no environment `prod`.
+> A role OIDC `fcg-prod-github-actions` não deve tentar apagar a própria policy/role.
+
 **Ordem de destruição interna:**
 1. Kubernetes → Argo CD App → Ingress → namespace
 2. ECR → esvaziar imagens
 3. AWS residual → ALBs → NAT Gateways → **Elastic IPs** → ENIs → SGs K8s
 4. Terraform destroy → VPC + EKS + RDS + Redis + OpenSearch + DynamoDB + Secrets Manager
-5. (opcional) Bootstrap → desanexa IAM Policy → terraform destroy
+5. (opcional) Bootstrap → reconfigura credenciais admin temporárias → desanexa IAM Policy → terraform destroy
 
 **Tempo:** ~20-30 min.
 

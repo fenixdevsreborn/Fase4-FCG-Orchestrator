@@ -112,6 +112,11 @@ Se os repos estão em uma organização GitHub, configure os secrets apenas uma 
 
 Após esta limpeza: **zero credenciais estáticas AWS no GitHub**. Tudo usa OIDC.
 
+> Se algum dia você executar `destroy-aws` com `destroy_bootstrap: true`, gere uma nova access key
+> temporária para o `fcg-bootstrap-admin` e recrie os secrets `BOOTSTRAP_AWS_ACCESS_KEY_ID` e
+> `BOOTSTRAP_AWS_SECRET_ACCESS_KEY` no repositório Orchestrator ou no environment `prod` antes do workflow.
+> Exclua a chave novamente ao final.
+
 ---
 
 > **Próxima etapa obrigatória →** Criar o **GitHub App `FCG GitOps`** antes de configurar os secrets das APIs.
