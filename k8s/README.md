@@ -64,7 +64,9 @@ Cada microsserviço tem sua própria pasta com:
 #### CatalogAPI
 - `ConnectionStrings__CatalogDatabase`: Connection string do PostgreSQL
 - `RabbitMQ__Host`: `rabbitmq-service`
-- `AuthService__BaseUrl`: `http://users-api-service:8080`
+- `Jwt__Key`: mesma chave usada pela UsersAPI
+- `Jwt__Issuer`: `UsersAPI`
+- `Jwt__Audience`: `UsersAPI`
 
 #### PaymentsAPI
 - `RabbitMQ__Host`: `rabbitmq-service`

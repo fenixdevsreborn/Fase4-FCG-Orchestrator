@@ -8,6 +8,7 @@ volumes:
   postgres-catalog-data:
   postgres-users-data:
   rabbitmq-data:
+  opensearch-data:
 
 services:
   # ============================================
@@ -74,22 +75,30 @@ services:
     networks:
       - fiap-network
 
+  opensearch:
+    image: opensearchproject/opensearch:2.15.0
+    container_name: fiap-opensearch
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "Admin123!"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks:
+      - fiap-network
+
   # ============================================
   # Microservices
   # ============================================
-
-  auth-service:
-    build:
-      context: ../Fase4-FCG-CatalogAPI/auth-service
-      dockerfile: Dockerfile
-    container_name: fiap-auth-service
-    ports:
-      - "3000:3000"
-    environment:
-      PORT: 3000
-    networks:
-      - fiap-network
-    restart: on-failure
 
   catalog-api:
     build:
@@ -106,14 +115,19 @@ services:
       RabbitMQ__Port: 5672
       RabbitMQ__Username: guest
       RabbitMQ__Password: guest
-      AuthService__BaseUrl: http://auth-service:3000
+      Jwt__Key: super-secret-docker-key-change-this-32chars-min
+      Jwt__Issuer: UsersAPI
+      Jwt__Audience: UsersAPI
+      OpenSearch__Enabled: "true"
+      OpenSearch__Endpoint: http://opensearch:9200
+      OpenSearch__IndexName: fcg-games-dev
     depends_on:
       postgres-catalog:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      auth-service:
-        condition: service_started
+      opensearch:
+        condition: service_healthy
     restart: on-failure
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
@@ -140,6 +154,8 @@ services:
       RabbitMQ__Username: guest
       RabbitMQ__Password: guest
       Jwt__Key: super-secret-docker-key-change-this-32chars-min
+      Jwt__Issuer: UsersAPI
+      Jwt__Audience: UsersAPI
       MT_LICENSE: Community
     depends_on:
       postgres-users:
@@ -214,14 +230,11 @@ services:
       Services__CatalogApi: http://catalog-api:8080
       Services__UsersApi: http://users-api:8080
       Services__PaymentsApi: http://payments-api:8080
-      Services__AuthService: http://auth-service:3000
     depends_on:
       catalog-api:
         condition: service_healthy
       users-api:
         condition: service_healthy
-      auth-service:
-        condition: service_started
       payments-api:
         condition: service_started
     restart: on-failure

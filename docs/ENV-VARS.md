@@ -27,7 +27,9 @@ Corresponde à variável de ambiente `RabbitMQ__Host=localhost`.
 | `RabbitMQ__Host` | RabbitMQ service hostname | Secret | X | X | X | X | |
 | `RabbitMQ__Username` | RabbitMQ username | Secret | X | X | X | X | |
 | `RabbitMQ__Password` | RabbitMQ password | Secret | X | X | X | X | |
-| `Jwt__Key` | Chave de assinatura JWT | Secret | X | | | | |
+| `Jwt__Key` | Chave de assinatura JWT compartilhada | Secret | X | X | | | |
+| `Jwt__Issuer` | Emissor esperado do JWT | Config | X | X | | | |
+| `Jwt__Audience` | Audience esperada do JWT | Config | X | X | | | |
 | `CatalogCache__ConnectionString` | ElastiCache Redis endpoint | Secret | | X | | | |
 | `DynamoDb__TableName` | DynamoDB table name | Config | | X | | | |
 | `DynamoDb__Region` | AWS region do DynamoDB | Config | | X | | | |
@@ -35,7 +37,6 @@ Corresponde à variável de ambiente `RabbitMQ__Host=localhost`.
 | `OpenSearch__IndexName` | Nome do índice OpenSearch | Config | | X | | | |
 | `OpenSearch__Username` | OpenSearch master username | Secret | | X | | | |
 | `OpenSearch__Password` | OpenSearch master password | Secret | | X | | | |
-| `AuthService__BaseUrl` | URL do AuthService externo | Config | | X | | | |
 | `ASPNETCORE_ENVIRONMENT` | `Development` ou `Production` | Config | X | X | X | X | X |
 | `ASPNETCORE_URLS` | Binding da API (`http://+:8080`) | Config | X | X | X | X | X |
 

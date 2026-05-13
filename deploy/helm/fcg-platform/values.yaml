@@ -155,7 +155,6 @@ services:
       Services__CatalogApi: http://catalog-api
       Services__UsersApi: http://users-api
       Services__PaymentsApi: http://payments-api
-      Services__AuthService: http://users-api
     resources:
       requests:
         cpu: 100m
@@ -269,6 +268,14 @@ services:
             remoteRef:
               key: fcg/prod/users-api
               property: Jwt__Key
+          - secretKey: AdminSeed__Email
+            remoteRef:
+              key: fcg/prod/users-api
+              property: AdminSeed__Email
+          - secretKey: AdminSeed__Password
+            remoteRef:
+              key: fcg/prod/users-api
+              property: AdminSeed__Password
 
   catalog-api:
     enabled: true
@@ -294,7 +301,8 @@ services:
       CatalogCache__DefaultTtlMinutes: "5"
       DynamoDb__Enabled: "true"
       OpenSearch__Enabled: "true"
-      AuthService__BaseUrl: http://users-api-service:8080
+      Jwt__Issuer: UsersAPI
+      Jwt__Audience: UsersAPI
     secretRefs:
       - catalog-api-secrets
     resources:
@@ -367,6 +375,10 @@ services:
             remoteRef:
               key: fcg/prod/catalog-api
               property: OpenSearch__Password
+          - secretKey: Jwt__Key
+            remoteRef:
+              key: fcg/prod/catalog-api
+              property: Jwt__Key
 
   payments-api:
     enabled: true

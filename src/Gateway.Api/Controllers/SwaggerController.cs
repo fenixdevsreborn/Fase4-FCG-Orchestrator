@@ -209,9 +209,19 @@ public class SwaggerController : ControllerBase
 
     private string GetServiceUrl(string serviceName)
     {
-        // Tenta obter da configuração primeiro
-        var configKey = $"Services:{serviceName}:BaseUrl";
-        var configuredUrl = _configuration[configKey];
+        var shortServiceName = serviceName switch
+        {
+            "UsersService" => "UsersApi",
+            "CatalogService" => "CatalogApi",
+            "PaymentsService" => "PaymentsApi",
+            "NotificationsService" => "NotificationsApi",
+            _ => serviceName
+        };
+
+        var configuredUrl =
+            _configuration[$"Services:{serviceName}:BaseUrl"] ??
+            _configuration[$"Services:{shortServiceName}:BaseUrl"] ??
+            _configuration[$"Services:{shortServiceName}"];
 
         if (!string.IsNullOrEmpty(configuredUrl))
         {

@@ -50,6 +50,8 @@ locals {
       RabbitMQ__Username                   = var.mq_username
       RabbitMQ__Password                   = random_password.rabbitmq.result
       Jwt__Key                             = random_password.users_jwt.result
+      AdminSeed__Email                     = "admin@usersapi.com"
+      AdminSeed__Password                  = random_password.users_admin.result
     }
     "catalog-api" = {
       ConnectionStrings__CatalogDatabase = "Host=${aws_db_instance.postgres.address};Port=${aws_db_instance.postgres.port};Database=${local.postgres.catalog.db_name};Username=${local.postgres.catalog.username};Password=${random_password.postgres["catalog"].result}"
@@ -63,6 +65,7 @@ locals {
       OpenSearch__IndexName              = "fcg-games"
       OpenSearch__Username               = var.opensearch_master_username
       OpenSearch__Password               = random_password.opensearch.result
+      Jwt__Key                           = random_password.users_jwt.result
     }
     "payments-api" = {
       RabbitMQ__Host     = local.rabbitmq_host
@@ -274,6 +277,14 @@ resource "random_password" "opensearch" {
 resource "random_password" "users_jwt" {
   length  = 48
   special = false
+}
+
+resource "random_password" "users_admin" {
+  length      = 18
+  special     = false
+  min_upper   = 2
+  min_lower   = 2
+  min_numeric = 2
 }
 
 resource "aws_db_subnet_group" "postgres" {
