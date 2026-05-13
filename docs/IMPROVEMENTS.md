@@ -129,7 +129,7 @@ Análise comparando a implementação atual com o spec do Tech Challenge (`docs/
 
 ### ✅ 22. CHANGELOG e versionamento semântico de imagem — IMPLEMENTADO
 - Workflow `release.yml` criado usando `googleapis/release-please-action@v4.1.3`.
-- A cada push em `master`, o release-please abre PR de release seguindo Conventional Commits.
+- Quando acionado manualmente, o release-please abre PR de release seguindo Conventional Commits.
 - Quando o PR é mergeado, cria tag `vX.Y.Z` e GitHub Release automaticamente.
 
 ---

@@ -217,9 +217,8 @@ Independente de qual opção você escolher, alguns secrets só podem ser criado
 | `BOOTSTRAP_AWS_ACCESS_KEY_ID` + `BOOTSTRAP_AWS_SECRET_ACCESS_KEY` | Necessário para o bootstrap inicial e para `destroy_bootstrap: true`. **Excluir após uso.** | Uma vez / sob demanda |
 | `DOCKERHUB_TOKEN` | Docker Hub não suporta OIDC. Precisa de PAT. | A cada 90 dias (rotação) |
 | `GITOPS_APP_PRIVATE_KEY` | Private key do GitHub App. Gerada manualmente no GitHub. | A cada 1 ano |
-| `GH_ADMIN_PAT` (opcional) | Usado pelo bootstrap.yml para auto-configurar secrets. **Excluir após uso.** | Uma vez |
 
-Com GitHub Organization Secrets + OIDC, o número de secrets que você gerencia manualmente cai de **~25 configurações** (5 repos × 5 secrets cada) para **4-6 itens**.
+Com GitHub Organization Secrets + OIDC, o número de secrets que você gerencia manualmente cai de **~25 configurações** (5 repos × 5 secrets cada) para **3-5 itens**.
 
 ---
 

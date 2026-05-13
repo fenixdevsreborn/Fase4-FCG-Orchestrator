@@ -46,11 +46,8 @@ No repositório `Fase4-FCG-Orchestrator`: **Settings → Secrets and variables �
 |---|---|
 | `BOOTSTRAP_AWS_ACCESS_KEY_ID` | Access Key ID do `fcg-bootstrap-admin` |
 | `BOOTSTRAP_AWS_SECRET_ACCESS_KEY` | Secret Access Key do `fcg-bootstrap-admin` |
-| `DOCKERHUB_TOKEN` | PAT Docker Hub Read & Write (se já tiver) |
-| `GITOPS_APP_PRIVATE_KEY` | Conteúdo do .pem do GitHub App (se já tiver criado) |
-| `GH_ADMIN_PAT` | PAT GitHub com `admin:repo` (se quiser auto-configurar todos os repos) |
 
-> Os últimos 3 são opcionais para o bootstrap mas são usados para auto-configurar os demais repos automaticamente.
+> O bootstrap não configura secrets de outros repositórios automaticamente. Ele só cria os recursos AWS e exibe os outputs para configuração manual.
 
 ### Passo 2 — Criar o environment `bootstrap` (recomendado)
 
@@ -66,9 +63,6 @@ Configure **Required reviewers**: adicione você mesmo. Desta forma, o workflow 
 
 Preencha os inputs:
 - **github_org:** nome da sua organização GitHub (ex: `thefenixdevs`)
-- **dockerhub_user:** seu username Docker Hub
-- **gitops_app_id:** ID do GitHub App (deixe vazio se não criou ainda)
-- **auto_configure_secrets:** marque `true` se forneceu `GH_ADMIN_PAT` acima
 
 Clique em **Run workflow** → aprove no environment `bootstrap` (se configurado).
 
@@ -76,7 +70,7 @@ O workflow irá:
 1. Configurar credenciais AWS temporárias
 2. Executar `terraform init` + `terraform apply` no `infra/terraform/bootstrap/`
 3. Capturar e exibir os outputs nos logs
-4. Se `auto_configure_secrets = true`: configurar automaticamente secrets/variables nos 6 repos
+4. Exibir instruções para configuração manual dos secrets/variables
 5. Exibir instruções de limpeza
 
 ### Passo 4 — Anotar os outputs
@@ -93,7 +87,7 @@ OIDC_PROVIDER_ARN   = arn:aws:iam::682839842435:oidc-provider/token.actions.gith
 ============================================================
 ```
 
-### Passo 5 — Configurar secrets nos repos (se não usou auto_configure)
+### Passo 5 — Configurar secrets nos repos
 
 Siga o roteiro em [MANUAL-STEPS.md §4](MANUAL-STEPS.md) com os valores do passo 4.
 
@@ -105,8 +99,7 @@ Se os repos estão em uma organização GitHub, configure os secrets apenas uma 
 ```
 1. GitHub: Settings → Secrets → excluir BOOTSTRAP_AWS_ACCESS_KEY_ID
 2. GitHub: Settings → Secrets → excluir BOOTSTRAP_AWS_SECRET_ACCESS_KEY
-3. GitHub: Settings → Secrets → excluir GH_ADMIN_PAT (se usou)
-4. AWS Console: IAM → Users → fcg-bootstrap-admin → Security credentials
+3. AWS Console: IAM → Users → fcg-bootstrap-admin → Security credentials
    → Deactivate (ou Delete) a Access Key
 ```
 

@@ -8,7 +8,7 @@ Guia de referência para a ordem correta de execução de todos os workflows CI/
 
 | # | Repo | Workflow | Trigger | O que faz |
 |---|---|---|---|---|
-| 01 | Orchestrator | `bootstrap-aws` | Manual (workflow_dispatch) | Cria OIDC, IAM role, S3, DynamoDB na AWS + configura secrets nos repos |
+| 01 | Orchestrator | `bootstrap-aws` | Manual (workflow_dispatch) | Cria OIDC, IAM role, S3, DynamoDB na AWS e exibe outputs |
 | 02 | Orchestrator | `terraform-aws` | Push em `master` (paths: infra/ ou deploy/helm/) | Cria EKS, ECR, RDS, Redis, OpenSearch, DynamoDB, secrets do RabbitMQ interno, Argo CD — e registra o Argo CD no cluster automaticamente |
 | 03 | Orchestrator | `gateway-api-ci-cd` | Push em `master` (paths: src/) ou manual | Build + push Gateway YARP → ECR + Docker Hub → atualiza values-prod.yaml |
 | 04a | UsersAPI | `users-api-ci-cd` | Push em `master` ou manual | Build + test + push → ECR + Docker Hub → atualiza values-prod.yaml |
@@ -16,7 +16,7 @@ Guia de referência para a ordem correta de execução de todos os workflows CI/
 | 04c | PaymentsAPI | `payments-api-ci-cd` | Push em `master` ou manual | Build + push → ECR + Docker Hub → atualiza values-prod.yaml |
 | 04d | NotificationsAPI | `notifications-api-ci-cd` | Push em `master` ou manual | Build + test + push → ECR + Docker Hub → atualiza values-prod.yaml |
 | 04e | Frontend | `frontend-ci-cd` | Push em `master` ou manual | Build Nuxt + push → ECR → atualiza values-prod.yaml |
-| 05 | Orchestrator | `release` | Push em `master` (exclui docs e valores de CI) | Abre PR de release semântico (Conventional Commits) |
+| 05 | Orchestrator | `release` | Manual (workflow_dispatch) | Abre/atualiza PR de release semântico quando acionado |
 | 06 | Orchestrator | `destroy-aws` | Manual (workflow_dispatch) | Destrói TODOS os recursos AWS em ordem segura |
 
 ---
@@ -30,9 +30,6 @@ Guia de referência para a ordem correta de execução de todos os workflows CI/
 **Inputs obrigatórios:**
 ```
 github_org:             fenixdevsreborn
-dockerhub_user:         <seu username Docker Hub>
-gitops_app_id:          3660554
-auto_configure_secrets: true
 ```
 
 **O que cria:**
@@ -40,7 +37,7 @@ auto_configure_secrets: true
 - IAM Role `fcg-prod-github-actions`
 - S3 bucket de state Terraform
 - DynamoDB lock table
-- Configura automaticamente todos os GitHub secrets/variables nos 5 repos
+- Exibe os outputs para configuração manual dos GitHub secrets/variables
 
 **Após rodar:** excluir `BOOTSTRAP_AWS_ACCESS_KEY_ID` e `BOOTSTRAP_AWS_SECRET_ACCESS_KEY` dos secrets do GitHub.
 

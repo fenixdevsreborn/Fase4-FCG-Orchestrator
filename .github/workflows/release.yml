@@ -3,8 +3,8 @@ name: release
 # Workflow de release semântico usando release-please.
 #
 # Como funciona:
-#   1. A cada push em master, este workflow analisa os commits seguindo o padrão
-#      Conventional Commits e abre (ou atualiza) um PR de release automaticamente.
+#   1. Quando acionado manualmente, este workflow analisa os commits seguindo o padrão
+#      Conventional Commits e abre (ou atualiza) um PR de release.
 #   2. Quando o PR de release é mergeado, cria a tag vX.Y.Z e a GitHub Release.
 #
 # Tipos de commit e impacto na versão:
@@ -14,17 +14,9 @@ name: release
 #   BREAKING CHANGE
 #   docs:/chore:    → sem bump de versão
 #
-# O workflow ignora commits de CI em values-prod.yaml (formato "ci: deploy *")
-# para evitar loop infinito de releases.
+# O workflow fica disponível apenas no botão Run workflow.
 
 on:
-  push:
-    branches: [master]
-    paths-ignore:
-      - "deploy/helm/fcg-platform/values-prod.yaml"
-      - "gitops/argocd/**"
-      - "*.md"
-      - "docs/**"
   workflow_dispatch:
 
 permissions:

@@ -21,14 +21,13 @@ Este checklist cobre **tudo o que NÃO é automatizado** pelas pipelines. Após 
 
 ### Bootstrap (uma vez, automatizado via GitHub Actions)
 - [ ] Configurar secrets temporários no Orchestrator: `BOOTSTRAP_AWS_ACCESS_KEY_ID`, `BOOTSTRAP_AWS_SECRET_ACCESS_KEY`
-- [ ] *(Opcional)* Configurar `GH_ADMIN_PAT` para auto-setup de todos os repos
 - [ ] *(Opcional)* Criar environment `bootstrap` com required reviewers
 - [ ] **Disparar workflow `bootstrap-aws`** via Actions → bootstrap-aws → Run workflow — [BOOTSTRAP.md](BOOTSTRAP.md)
 - [ ] **Excluir** `BOOTSTRAP_AWS_ACCESS_KEY_ID` e `BOOTSTRAP_AWS_SECRET_ACCESS_KEY` do GitHub e da AWS
 
 ### Configuração de secrets (uma vez)
 - [ ] **GitHub Org Secrets** (se organização) OU **Doppler** (se conta pessoal) — [SECRETS-MANAGEMENT.md](SECRETS-MANAGEMENT.md)
-- [ ] **GitHub secrets/variables** nos 6 repositórios (se não usou auto-config do bootstrap)
+- [ ] **GitHub secrets/variables** nos 6 repositórios
 - [ ] **Editar `repoURL`** em `gitops/argocd/*.yaml` (ou confiar no render automático)
 
 ### Deploy inicial
