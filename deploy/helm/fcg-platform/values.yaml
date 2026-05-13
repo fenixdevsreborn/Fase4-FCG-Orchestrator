@@ -152,9 +152,9 @@ services:
     env:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      Services__CatalogApi: http://catalog-api
-      Services__UsersApi: http://users-api
-      Services__PaymentsApi: http://payments-api
+      Services__CatalogApi: http://catalog-api-service:8080
+      Services__UsersApi: http://users-api-service:8080
+      Services__PaymentsApi: http://payments-api-service:80
     resources:
       requests:
         cpu: 100m
